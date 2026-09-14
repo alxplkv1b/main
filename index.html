@@ -97,13 +97,13 @@ const CONFIG = {
 
   // Колода: 40 циферок, распределение и величины — из задания, не менять формулу.
   DECK_SPEC: [
-    { key: "trud_small",  type: "trud",     sizeLabel: "труд мелкий",      hours: 1, base: 10, mult: 1,
+    { key: "trud_small",  type: "trud",     sizeLabel: "копошение в листочках", hours: 1, base: 10, mult: 1,
       names: ["Подшить бумажку","Пересчитать скрепки","Протереть печать","Свериться с указом","Отписаться в журнал","Заштриховать клетку","Прошнуровать дело","Отмерить чернил"] },
-    { key: "trud_medium", type: "trud",     sizeLabel: "труд средний",     hours: 2, base: 30, mult: 1,
+    { key: "trud_medium", type: "trud",     sizeLabel: "размусоливание букв",   hours: 2, base: 30, mult: 1,
       names: ["Составить отписку","Свести баланс по циферкам","Заполнить требу","Обойти три конторы","Сверить два реестра","Начертать табель","Уложить кипу в стопу","Дозвониться до соседней конторки","Переписать черновик наново"] },
-    { key: "trud_large",  type: "trud",     sizeLabel: "труд крупный",     hours: 3, base: 48, mult: 2,
+    { key: "trud_large",  type: "trud",     sizeLabel: "корпение",              hours: 3, base: 48, mult: 2,
       names: ["Собрать квартальный свод","Разобрать завал прошлого лета","Вывести дело из тупика","Согласовать с тремя конторками","Перелопатить архив","Свершить годовой перечёт"] },
-    { key: "trud_epic",   type: "trud",     sizeLabel: "труд эпопея",      hours: 4, base: 68, mult: 2,
+    { key: "trud_epic",   type: "trud",     sizeLabel: "гора батрачки",         hours: 4, base: 68, mult: 2,
       names: ["Поднять дело из мёртвых","Учинить ревизию всей конторки","Совершить подвиг во имя квартала"] },
     { key: "pok_small",   type: "pokazuha", sizeLabel: "показуха мелкая",  hours: 1, base: 4,  mult: 2,
       names: ["Улыбнуться начальству","Ответить бодро в чате","Поставить себя в копию","Кивнуть на совещании","Похвалить чужой отчёт","Явиться пораньше для виду"] },
@@ -272,7 +272,8 @@ const App = {
       message: "",
       pendingPlaceCardId: null,
       discardMode: false,
-      showLegend: true
+      showLegend: false,
+      legendShownOnce: false
     };
     this.newQuarter();
     this.render();
@@ -300,7 +301,7 @@ const App = {
 
   newDay(){
     const st = this.state;
-    st.screen = "day";
+    st.screen = "day-intro";
     st.dayPlaced = [];
     st.discardsUsedToday = 0;
     st.message = "";
@@ -318,12 +319,21 @@ const App = {
     } else {
       st.forcedBlock = null;
     }
+  },
 
+  beginDay(){
+    const st = this.state;
     this.dealHand();
     st.log.unshift({
       type: "day-start", quarter: st.quarterIndex + 1, day: st.dayIndex + 1,
       weekday: CONFIG.WEEKDAYS[st.dayIndex], blocked: [...st.dayBlockedHours]
     });
+    st.screen = "day";
+    if (!st.legendShownOnce){
+      st.showLegend = true;
+      st.legendShownOnce = true;
+    }
+    this.render();
   },
 
   dealHand(){
@@ -456,6 +466,15 @@ const App = {
       runningTotal: st.quarterScore, totalBurnout: st.totalBurnout, kukishi: st.kukishi
     });
 
+    const isLastDayOfQuarter = st.dayIndex === CONFIG.DAYS_PER_QUARTER - 1;
+    const thresholdFailed = isLastDayOfQuarter && st.quarterScore < CONFIG.THRESHOLDS[st.quarterIndex];
+    st.dayOutro = { overtimeHours: otInfo.overtimeHours.length, thresholdFailed };
+    st.screen = "day-outro";
+    this.render();
+  },
+
+  continueAfterDayOutro(){
+    this.state.dayOutro = null;
     this.advanceDay();
   },
 
@@ -554,7 +573,9 @@ const App = {
     const st = this.state;
     let html = "";
     if (st.screen === "start") html = this.renderStart();
+    else if (st.screen === "day-intro") html = this.renderDayIntro();
     else if (st.screen === "day") html = this.renderDay();
+    else if (st.screen === "day-outro") html = this.renderDayOutro();
     else if (st.screen === "shop") html = this.renderShop();
     else if (st.screen === "gameover-early") html = this.renderGameOverEarly();
     else if (st.screen === "finale") html = this.renderFinale();
@@ -574,6 +595,38 @@ const App = {
         <button data-action="close-legend">Понятно</button>
       </div>
     </div>`;
+  },
+
+  renderDayIntro(){
+    return `
+      <h1>Батракан</h1>
+      <div class="box lore">
+        А ты и не заметил, как наступил очередной день в конторке. Впереди гора батрачки.
+        Какая же благодать — шабашить в любимой конторке на благо хозяина. Авось ещё и
+        кукишей да обещаний подкинут пуще прежнего.
+      </div>
+      <div class="row"><button data-action="begin-day">Батраканить</button></div>
+    `;
+  },
+
+  renderDayOutro(){
+    const o = this.state.dayOutro;
+    let line3;
+    if (o.thresholdFailed) line3 = "Ты устал, оно и понятно.";
+    else if (o.overtimeHours === 0) line3 = "Вахтёрыч на выходе кивнул, дивясь.";
+    else if (o.overtimeHours <= 2) line3 = "Вахтёрыч на выходе устало кивнул, он тоже утомился бдеть.";
+    else line3 = "Вахтёрыч на выходе уже и не глядит.";
+
+    return `
+      <h1>Батракан</h1>
+      <div class="box lore">
+        Ты сделал это, ты своё отшабашкал.<br>
+        Циферки накалупаны, бурмалда набережена, аккуратно сконтейнированы.<br>
+        ${line3}<br>
+        Отдыхай, батракан. Скоро свидимся.
+      </div>
+      <div class="row"><button data-action="continue-day-outro">Дальше</button></div>
+    `;
   },
 
   renderStart(){
@@ -839,6 +892,10 @@ document.addEventListener("click", function(e){
   if (action === "start-run"){
     const input = document.getElementById("seedInput");
     App.startRun(input ? input.value : "");
+  } else if (action === "begin-day"){
+    App.beginDay();
+  } else if (action === "continue-day-outro"){
+    App.continueAfterDayOutro();
   } else if (action === "arm-card"){
     App.armCard(el.dataset.cardId);
   } else if (action === "toggle-discard-mode"){
