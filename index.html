@@ -15,21 +15,17 @@
   .col{flex:1;min-width:260px;}
   .small{font-size:11px;color:#333;}
   .msg{font-weight:bold;}
-  table{border-collapse:collapse;}
-  td,th{border:1px solid #999;padding:2px 6px;font-size:12px;text-align:left;}
+  .lore{font-style:italic;color:#333;}
   h1,h2,h3{margin:6px 0;}
 
-  /* ---- backlog cards ---- */
   .backlog-card{border:1px solid #999;padding:5px;margin-bottom:5px;font-size:12px;background:#fafafa;}
   .backlog-card.armed{border:2px solid #333;background:#f0f0f0;}
   .backlog-card .name{font-weight:bold;}
 
-  /* ---- joker slots ---- */
-  .joker-slots{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
-  .joker-slot{border:1px solid #999;padding:6px;width:220px;font-size:11px;}
-  .joker-slot.empty{border:1px dashed #bbb;color:#999;display:flex;align-items:center;justify-content:center;min-height:40px;}
+  .item-slots{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  .item-slot{border:1px solid #999;padding:6px;width:220px;font-size:11px;}
+  .item-slot.empty{border:1px dashed #bbb;color:#999;display:flex;align-items:center;justify-content:center;min-height:40px;}
 
-  /* ---- calendar ---- */
   .calendar-wrap{display:flex;gap:16px;}
   .calendar{display:grid;grid-template-columns:56px 1fr;grid-auto-rows:34px;border:1px solid #999;}
   .hour-label{grid-column:1;border-bottom:1px solid #ddd;border-right:1px solid #999;font-size:11px;padding:2px 4px;background:#f5f5f5;}
@@ -39,10 +35,9 @@
   .hour-cell.lunch{background:#eeeeee;color:#777;}
   .hour-cell.blocked{background:#e2e2e2;color:#777;background-image:repeating-linear-gradient(45deg,#ddd 0,#ddd 2px,#eee 2px,#eee 6px);}
   .task-block{grid-column:2;border:1px solid #555;padding:3px 5px;font-size:11px;overflow:hidden;cursor:pointer;}
-  .proj-0{background:#d7ecff;}
-  .proj-1{background:#ffe4d6;}
-  .proj-2{background:#e4ffd9;}
-  .proj-3{background:#f3d9ff;}
+  .type-trud{background:#dbe9ff;}
+  .type-pokazuha{background:#fff2cf;}
+  .comm-block{grid-column:2;border:1px dashed #666;padding:3px 5px;font-size:11px;overflow:hidden;background:#e8e8e8;cursor:default;}
 
   .formula-bar{border:1px solid #333;padding:8px;font-size:15px;font-weight:bold;margin-top:8px;}
 </style>
@@ -57,125 +52,78 @@
 const CONFIG = {
   DAY_START_HOUR: 9,
   DAY_END_HOUR: 22,          // день физически кончается в 22:00 (последний слот начинается в 21)
-  OVERTIME_START_HOUR: 18,   // всё, что >= этого часа — овертайм / красная зона
-  LUNCH_HOUR: 13,            // обед — всегда занят, не доступен
+  OVERTIME_START_HOUR: 18,   // всё, что >= этого часа — переработка / красная зона
+  LUNCH_HOUR: 13,            // обед — всегда занят
   BASE_WORK_HOURS: 8,        // нормальных часов в день без Выгорания (9 слотов 9-18 минус обед)
-  MIN_WORK_HOURS: 4,         // минимум нормальных часов после всех сокращений
-  BURNOUT_SHRINK_PER: 3,     // каждые N Выгорания сокращают день на 1 час
+  MIN_WORK_HOURS: 4,         // пол после всех сокращений
+  BURNOUT_SHRINK_PER: 3,     // каждые N Выгорания отнимают 1 час от дня
 
   DAYS_PER_QUARTER: 5,
   HAND_SIZE: 8,
   DISCARDS_PER_DAY: 2,
-  MAX_JOKER_SLOTS: 4,
+  MAX_ITEM_SLOTS: 4,
   SHOP_SIZE: 3,
-  HR_ACTIVE_QUARTERS: 3,     // «Друг в HR» активен столько кварталов подряд, потом ломается
+  KUDESNITSA_ACTIVE_QUARTERS: 3, // «Кудесница благоволит» держится столько кварталов, потом истает
+  FINALE_THRESHOLD: 20,          // порог «Куда деваться» для финала
 
   THRESHOLDS: [1500, 3500, 8000, 18000, 40000],
-  WEEKDAYS: ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница"],
-  PROJECTS: ["Атлас", "Феникс", "Орион", "Незабудка"],
+  WEEKDAYS: ["день первый", "день второй", "день третий", "день четвёртый", "день пятый"],
 
-  // Часы (1-4) заданы явно по позиции карты в списке имён своего типа.
-  // Разработка — длинная и негибкая, но самый большой Результат.
-  // Переписка — всегда 1 час, самая гибкая, но маленький Результат.
-  TYPES: [
-    {
-      key: "dev", label: "Разработка",
-      resultRange: [35, 60], visRange: [1, 2],
-      hours: [2, 3, 4, 3, 4, 2, 3, 4, 3, 2],
-      names: [
-        "Написать модуль", "Зарефакторить сервис", "Пофиксить критический баг",
-        "Задеплоить релиз", "Написать unit-тесты", "Настроить CI/CD",
-        "Провести код-ревью", "Оптимизировать запрос к базе",
-        "Мигрировать на новую версию", "Собрать прототип фичи"
-      ]
-    },
-    {
-      key: "meeting", label: "Встреча",
-      resultRange: [10, 20], visRange: [3, 4],
-      hours: [1, 1, 2, 1, 1, 2, 1, 1, 2, 1],
-      names: [
-        "Синхрон по статусу", "Ретро квартала", "Встреча с заказчиком",
-        "Планирование спринта", "1-на-1 с руководителем", "Демо для стейкхолдеров",
-        "Созвон с подрядчиком", "Обсуждение бюджета", "Общий брифинг отдела",
-        "Митинг «на всякий случай»"
-      ]
-    },
-    {
-      key: "report", label: "Отчёт",
-      resultRange: [20, 35], visRange: [2, 3],
-      hours: [2, 2, 1, 3, 2, 1, 2, 3, 2, 1],
-      names: [
-        "Отчёт по прогрессу", "Презентация для дирекции", "Сводка по рискам",
-        "Квартальный отчёт", "Отчёт в OKR-систему", "Аналитика по метрикам",
-        "Отчёт для аудита", "Пост-мортем инцидента", "Отчёт по бюджету проекта",
-        "Итоговая презентация"
-      ]
-    },
-    {
-      key: "mail", label: "Переписка",
-      resultRange: [10, 15], visRange: [4, 5],
-      hours: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-      names: [
-        "Ответить в переписке", "Уточнить детали по почте", "Согласовать в чате",
-        "Разослать напоминание", "Ответить всем (Reply All)", "Уточнить статус в Slack",
-        "Переслать письмо «на всякий случай»", "Согласование по email",
-        "Написать саммари в чат", "Поставить в копию (CC)"
-      ]
-    }
+  COMM_OPTIONS: [
+    "общение с руководством",
+    "общение с безопасностью",
+    "общение по поводу общения"
   ],
 
-  JOKERS: [
-    { id: "cc",       name: "Ты в копии",     price: 3, desc: "+2 Видимости за каждую сыгранную за день задачу типа «Переписка»." },
-    { id: "hr",       name: "Друг в HR",      price: 6, desc: "×1.5 к итоговой Видимости дня. Ломается через " + 3 + " квартала работы." },
-    { id: "coffee",   name: "Кофемашина",     price: 4, desc: "+1 бесплатный час овертайма без Выгорания в день (складывается с «Удалёнкой»)." },
-    { id: "remote",   name: "Удалёнка",       price: 4, desc: "Первые 2 часа овертайма за день не дают Выгорания." },
-    { id: "vacation", name: "Отпуск",         price: 5, desc: "Одноразово: сжигает 6 накопленного Выгорания, но съедает весь день (0 задач в этот день).", oneTime: true }
+  // Колода: 40 циферок, распределение и величины — из задания, не менять формулу.
+  DECK_SPEC: [
+    { key: "trud_small",  type: "trud",     sizeLabel: "труд мелкий",      hours: 1, base: 10, mult: 1,
+      names: ["Подшить бумажку","Пересчитать скрепки","Протереть печать","Свериться с указом","Отписаться в журнал","Заштриховать клетку","Прошнуровать дело","Отмерить чернил"] },
+    { key: "trud_medium", type: "trud",     sizeLabel: "труд средний",     hours: 2, base: 30, mult: 1,
+      names: ["Составить отписку","Свести баланс по циферкам","Заполнить требу","Обойти три конторы","Сверить два реестра","Начертать табель","Уложить кипу в стопу","Дозвониться до соседней конторки","Переписать черновик наново"] },
+    { key: "trud_large",  type: "trud",     sizeLabel: "труд крупный",     hours: 3, base: 48, mult: 2,
+      names: ["Собрать квартальный свод","Разобрать завал прошлого лета","Вывести дело из тупика","Согласовать с тремя конторками","Перелопатить архив","Свершить годовой перечёт"] },
+    { key: "trud_epic",   type: "trud",     sizeLabel: "труд эпопея",      hours: 4, base: 68, mult: 2,
+      names: ["Поднять дело из мёртвых","Учинить ревизию всей конторки","Совершить подвиг во имя квартала"] },
+    { key: "pok_small",   type: "pokazuha", sizeLabel: "показуха мелкая",  hours: 1, base: 4,  mult: 2,
+      names: ["Улыбнуться начальству","Ответить бодро в чате","Поставить себя в копию","Кивнуть на совещании","Похвалить чужой отчёт","Явиться пораньше для виду"] },
+    { key: "pok_medium",  type: "pokazuha", sizeLabel: "показуха средняя", hours: 2, base: 10, mult: 4,
+      names: ["Составить красивую презентацию","Отписаться всем сразу","Явиться на совещание без дела","Разослать бодрый отчёт о ничём","Затеять разговор о нагрузке"] },
+    { key: "pok_large",   type: "pokazuha", sizeLabel: "показуха крупная", hours: 3, base: 15, mult: 6,
+      names: ["Выступить перед директорским приказом","Устроить показательное усердие","Затмить соседа на общем сходе"] }
+  ],
+
+  // Предметы в конторке за кукиши. oneTime — расходуется и пропадает из слота.
+  ITEMS: [
+    { id: "otgul",      name: "«Отгул»",                price: 10, desc: "Одноразово: сжигает 6 Выгорания, забирает весь день целиком.", oneTime: true },
+    { id: "pechat",     name: "«Казённая печать»",      price: 20, desc: "+2 Замечено за каждую сыгранную показуху в этот день." },
+    { id: "kofeinik",   name: "«Кофейник»",             price: 25, desc: "+1 час к рабочему дню — без Выгорания и без кукишей." },
+    { id: "valerianka", name: "«Валерьянка»",           price: 35, desc: "Одноразово: сжигает 3 Выгорания, дня не отбирает.", oneTime: true },
+    { id: "kudesnitsa", name: "«Кудесница благоволит»", price: 50, desc: "×1.5 к Замечено. Благоволение держится " + 3 + " квартала, потом истает." }
   ]
 };
 
-CONFIG.NORMAL_HOURS = [9, 10, 11, 12, 14, 15, 16, 17];   // 8 слотов 9-18 без обеда
-CONFIG.OVERTIME_HOURS = [18, 19, 20, 21];                // 4 слота 18-22
+CONFIG.NORMAL_HOURS = [9, 10, 11, 12, 14, 15, 16, 17]; // 8 слотов 9-18 без обеда
+CONFIG.OVERTIME_HOURS = [18, 19, 20, 21];              // 4 слота 18-22
 
 CONFIG.CARDS = (function buildCards(){
   const list = [];
-  CONFIG.TYPES.forEach(type => {
-    const n = type.names.length;
-    type.names.forEach((name, i) => {
-      const project = CONFIG.PROJECTS[i % CONFIG.PROJECTS.length];
-      const rSpan = type.resultRange[1] - type.resultRange[0];
-      const result = type.resultRange[0] + Math.round(rSpan * (i / (n - 1)));
-      const vSpan = type.visRange[1] - type.visRange[0];
-      const vis = type.visRange[0] + (vSpan > 0 ? (i % (vSpan + 1)) : 0);
-      const hours = type.hours[i];
-      list.push({ id: type.key + "_" + i, name, project, type: type.key, result, vis, hours });
+  CONFIG.DECK_SPEC.forEach(spec => {
+    spec.names.forEach((name, i) => {
+      list.push({ id: spec.key + "_" + i, name, type: spec.type, sizeLabel: spec.sizeLabel, hours: spec.hours, base: spec.base, mult: spec.mult });
     });
   });
   return list;
 })();
 
-function typeLabel(key){
-  const t = CONFIG.TYPES.find(t => t.key === key);
-  return t ? t.label : key;
-}
-function projectIndex(name){
-  return CONFIG.PROJECTS.indexOf(name);
-}
-function jokerDef(id){
-  return CONFIG.JOKERS.find(j => j.id === id);
-}
-function countOwned(jokerSlots, id){
-  return jokerSlots.filter(s => s.id === id).length;
-}
-function fmt(n){
-  return Math.round(n * 100) / 100;
-}
+function itemDef(id){ return CONFIG.ITEMS.find(j => j.id === id); }
+function countOwned(itemSlots, id){ return itemSlots.filter(s => s.id === id).length; }
+function fmt(n){ return Math.round(n * 100) / 100; }
 
 /* ======================= RNG ======================= */
 function hashStringToInt(str){
   let h = 0;
-  for (let i = 0; i < str.length; i++){
-    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-  }
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
   return h >>> 0;
 }
 function resolveSeed(input){
@@ -203,33 +151,32 @@ function shuffle(arr, rng){
 }
 
 /* ======================= SCORING (без комбо) ======================= */
-function isJokerActive(slot){
-  if (slot.id === "hr") return slot.quartersUsed <= CONFIG.HR_ACTIVE_QUARTERS;
+function isItemActive(slot){
+  if (slot.id === "kudesnitsa") return slot.quartersUsed <= CONFIG.KUDESNITSA_ACTIVE_QUARTERS;
   return true;
 }
 
-// Чистая функция: считает Результат × Видимость дня по уже размещённым картам.
-// Не трогает состояние — используется и для превью, и для реального подсчёта.
-function computeDayScore(cards, jokerSlots){
-  const resultBase = cards.reduce((s, c) => s + c.result, 0);
-  const visBase = cards.reduce((s, c) => s + c.vis, 0);
+// Чистая функция: Наколупано × Замечено. Используется и для живой формулы, и для реального подсчёта.
+function computeDayScore(cards, itemSlots){
+  const resultBase = cards.reduce((s, c) => s + c.base, 0);
+  const visBase = cards.reduce((s, c) => s + c.mult, 0);
   let result = resultBase;
   let vis = visBase;
   const steps = [];
 
-  jokerSlots.forEach(slot => {
+  itemSlots.forEach(slot => {
     if (!slot) return;
-    const def = jokerDef(slot.id);
-    if (slot.id === "coffee" || slot.id === "remote" || slot.id === "vacation") return; // не влияют на формулу
-    if (slot.id === "hr" && !isJokerActive(slot)){
+    const def = itemDef(slot.id);
+    if (slot.id === "kofeinik" || slot.id === "otgul" || slot.id === "valerianka") return; // не влияют на формулу
+    if (slot.id === "kudesnitsa" && !isItemActive(slot)){
       steps.push({ name: def.name, broken: true });
       return;
     }
     const before = { result, vis };
-    if (slot.id === "cc"){
-      const cnt = cards.filter(c => c.type === "mail").length;
+    if (slot.id === "pechat"){
+      const cnt = cards.filter(c => c.type === "pokazuha").length;
       vis += 2 * cnt;
-    } else if (slot.id === "hr"){
+    } else if (slot.id === "kudesnitsa"){
       vis *= 1.5;
     }
     steps.push({ name: def.name, before, after: { result, vis } });
@@ -239,17 +186,17 @@ function computeDayScore(cards, jokerSlots){
   return { resultBase, visBase, steps, result, vis, score };
 }
 
-// Овертайм/Выгорание — отдельная от формулы система.
-function computeOvertime(dayPlaced, jokerSlots){
+// Переработка: Выгорание и кукиши всегда начисляются парой, час к часу.
+function computeOvertime(dayPlaced, itemSlots){
   const overtimeHours = [];
   dayPlaced.forEach(p => p.occupiedHours.forEach(h => {
     if (h >= CONFIG.OVERTIME_START_HOUR) overtimeHours.push(h);
   }));
   overtimeHours.sort((a, b) => a - b);
-  const freeBudget = 2 * countOwned(jokerSlots, "remote") + 1 * countOwned(jokerSlots, "coffee");
+  const freeBudget = countOwned(itemSlots, "kofeinik");
   const freeHours = overtimeHours.slice(0, freeBudget);
   const paidHours = overtimeHours.slice(freeBudget);
-  return { overtimeHours, freeBudget, freeHours, paidHours, burnout: paidHours.length };
+  return { overtimeHours, freeBudget, freeHours, paidHours, burnout: paidHours.length, kukishi: paidHours.length };
 }
 
 function computeDayBlockedHours(totalBurnout){
@@ -276,9 +223,10 @@ const App = {
       seed: seed,
       rng: mulberry32(seed),
       quarterIndex: 0,
-      currency: 0,
+      kukishi: 0,
       totalBurnout: 0,
-      jokerSlots: [],
+      kudaDevatsya: 0,
+      itemSlots: [],
       log: [],
       message: "",
       pendingPlaceCardId: null,
@@ -297,12 +245,13 @@ const App = {
     st.quarterScore = 0;
     st.dayIndex = 0;
 
-    st.jokerSlots.forEach(slot => {
-      if (slot.id === "hr" && slot.quartersUsed <= CONFIG.HR_ACTIVE_QUARTERS){
+    st.itemSlots.forEach(slot => {
+      if (slot.id === "kudesnitsa" && slot.quartersUsed <= CONFIG.KUDESNITSA_ACTIVE_QUARTERS){
         slot.quartersUsed++;
       }
     });
 
+    st.commFlavorThisQuarter = CONFIG.COMM_OPTIONS[Math.floor(st.rng() * CONFIG.COMM_OPTIONS.length)];
     st.log.unshift({ type: "quarter-start", quarter: st.quarterIndex + 1, threshold: CONFIG.THRESHOLDS[st.quarterIndex] });
     this.newDay();
   },
@@ -320,6 +269,13 @@ const App = {
     st.dayBlockedHours = blockInfo.blocked;
     st.dayShrink = blockInfo.shrink;
 
+    if (st.dayIndex === 0){
+      st.forcedBlock = { startHour: 9, hours: 2, occupiedHours: [9, 10], label: st.commFlavorThisQuarter };
+      st.log.unshift({ type: "comm-order", quarter: st.quarterIndex + 1, flavor: st.commFlavorThisQuarter });
+    } else {
+      st.forcedBlock = null;
+    }
+
     this.dealHand();
     st.log.unshift({
       type: "day-start", quarter: st.quarterIndex + 1, day: st.dayIndex + 1,
@@ -334,12 +290,19 @@ const App = {
     }
   },
 
+  occupiedHoursSoFar(){
+    const st = this.state;
+    const occ = new Set(st.dayPlaced.flatMap(p => p.occupiedHours));
+    if (st.forcedBlock) st.forcedBlock.occupiedHours.forEach(h => occ.add(h));
+    return occ;
+  },
+
   armCard(cardId){
     const st = this.state;
     const card = st.hand.find(c => c.id === cardId);
     if (!card) return;
     st.pendingPlaceCardId = cardId;
-    st.message = "Выбрана задача «" + card.name + "». Кликни на свободную ячейку календаря (или перетащи карту туда).";
+    st.message = "Выбрана циферка «" + card.name + "». Кликни на свободную ячейку (или перетащи туда).";
     this.render();
   },
 
@@ -359,21 +322,17 @@ const App = {
     for (let h = startHour; h < startHour + duration; h++) occ.push(h);
 
     if (occ.some(h => h < CONFIG.DAY_START_HOUR || h >= CONFIG.DAY_END_HOUR)){
-      st.message = "Задача не влезает в день (граница — 22:00).";
-      this.render(); return;
+      st.message = "Циферка не влезает в день (граница — 22:00)."; this.render(); return;
     }
     if (occ.includes(CONFIG.LUNCH_HOUR)){
-      st.message = "Задача попадает на обед (13:00) — недоступно.";
-      this.render(); return;
+      st.message = "Циферка попадает на обед (13:00) — недоступно."; this.render(); return;
     }
     if (occ.some(h => st.dayBlockedHours.has(h))){
-      st.message = "Часть слотов недоступна из-за накопленного Выгорания.";
-      this.render(); return;
+      st.message = "Часть слотов недоступна из-за накопленного Выгорания."; this.render(); return;
     }
-    const occupiedSoFar = new Set(st.dayPlaced.flatMap(p => p.occupiedHours));
+    const occupiedSoFar = this.occupiedHoursSoFar();
     if (occ.some(h => occupiedSoFar.has(h))){
-      st.message = "Слот уже занят другой задачей.";
-      this.render(); return;
+      st.message = "Слот уже занят."; this.render(); return;
     }
 
     st.hand = st.hand.filter(c => c.id !== cardId);
@@ -383,18 +342,19 @@ const App = {
     this.render();
   },
 
-  handleDrop(cardId, startHour){
-    this.placeCard(cardId, startHour);
-  },
+  handleDrop(cardId, startHour){ this.placeCard(cardId, startHour); },
 
   onCellClick(startHour){
     const st = this.state;
     if (!st.pendingPlaceCardId){
-      st.message = "Сначала кликни по задаче в бэклоге, потом по ячейке.";
-      this.render();
-      return;
+      st.message = "Сначала кликни по циферке в руке, потом по ячейке."; this.render(); return;
     }
     this.placeCard(st.pendingPlaceCardId, startHour);
+  },
+
+  onForcedBlockClick(){
+    this.state.message = "Приказ есть приказ — общение не отменить.";
+    this.render();
   },
 
   unplaceCard(cardId){
@@ -411,12 +371,10 @@ const App = {
     const st = this.state;
     const chosen = st.hand.filter(c => st.selectedBacklog.has(c.id));
     if (chosen.length < 1){
-      st.message = "Выбери хотя бы одну задачу для делегирования.";
-      this.render(); return;
+      st.message = "Выбери хотя бы одну циферку, чтобы спихнуть."; this.render(); return;
     }
     if (st.discardsUsedToday >= CONFIG.DISCARDS_PER_DAY){
-      st.message = "Делегирования на сегодня закончились.";
-      this.render(); return;
+      st.message = "На сегодня соседи кончились."; this.render(); return;
     }
     st.discardPile.push(...chosen);
     st.hand = st.hand.filter(c => !st.selectedBacklog.has(c.id));
@@ -430,48 +388,57 @@ const App = {
   submitDay(){
     const st = this.state;
     const cards = st.dayPlaced.map(p => p.card);
-    const scoreInfo = computeDayScore(cards, st.jokerSlots);
-    const overtimeInfo = computeOvertime(st.dayPlaced, st.jokerSlots);
+    const scoreInfo = computeDayScore(cards, st.itemSlots);
+    const otInfo = computeOvertime(st.dayPlaced, st.itemSlots);
+
+    const normalHoursToday = CONFIG.NORMAL_HOURS.filter(h => !st.dayBlockedHours.has(h));
+    const occupied = this.occupiedHoursSoFar();
+    const emptyHours = normalHoursToday.filter(h => !occupied.has(h));
+    st.kudaDevatsya += emptyHours.length;
 
     st.playedPile.push(...cards);
     st.quarterScore += scoreInfo.score;
-    st.totalBurnout += overtimeInfo.burnout;
+    st.totalBurnout += otInfo.burnout;
+    st.kukishi += otInfo.kukishi;
 
     st.log.unshift({
       type: "day-end", quarter: st.quarterIndex + 1, day: st.dayIndex + 1,
-      cards, scoreInfo, overtimeInfo, runningTotal: st.quarterScore, totalBurnout: st.totalBurnout
+      cards, scoreInfo, otInfo, emptyHours: emptyHours.length,
+      runningTotal: st.quarterScore, totalBurnout: st.totalBurnout, kukishi: st.kukishi
     });
 
     this.advanceDay();
   },
 
-  useVacation(slotIdx){
+  useOneTimeItem(slotIdx){
     const st = this.state;
-    const slot = st.jokerSlots[slotIdx];
-    if (!slot || slot.id !== "vacation") return;
+    const slot = st.itemSlots[slotIdx];
+    if (!slot) return;
+    const def = itemDef(slot.id);
+    if (!def || !def.oneTime) return;
 
-    st.dayPlaced.forEach(p => st.hand.push(p.card));
-    st.dayPlaced = [];
-    st.jokerSlots.splice(slotIdx, 1);
+    const eatsDay = slot.id === "otgul";
+    const burnAmount = slot.id === "otgul" ? 6 : (slot.id === "valerianka" ? 3 : 0);
+
+    if (eatsDay){
+      st.dayPlaced.forEach(p => st.hand.push(p.card));
+      st.dayPlaced = [];
+    }
+    st.itemSlots.splice(slotIdx, 1);
     const before = st.totalBurnout;
-    st.totalBurnout = Math.max(0, st.totalBurnout - 6);
+    st.totalBurnout = Math.max(0, st.totalBurnout - burnAmount);
 
-    st.log.unshift({
-      type: "vacation", quarter: st.quarterIndex + 1, day: st.dayIndex + 1,
-      before, after: st.totalBurnout
-    });
+    st.log.unshift({ type: "onetime-item", name: def.name, day: st.dayIndex + 1, before, after: st.totalBurnout, eatsDay });
 
-    this.advanceDay();
+    if (eatsDay) this.advanceDay();
+    else this.render();
   },
 
   advanceDay(){
     const st = this.state;
     st.dayIndex++;
-    if (st.dayIndex >= CONFIG.DAYS_PER_QUARTER){
-      this.endQuarter();
-    } else {
-      this.newDay();
-    }
+    if (st.dayIndex >= CONFIG.DAYS_PER_QUARTER) this.endQuarter();
+    else this.newDay();
     this.render();
   },
 
@@ -481,52 +448,46 @@ const App = {
     const passed = st.quarterScore >= threshold;
     st.log.unshift({ type: "quarter-end", quarter: st.quarterIndex + 1, threshold, score: st.quarterScore, passed });
 
-    if (!passed){
-      st.screen = "gameover";
+    if (st.quarterIndex === CONFIG.THRESHOLDS.length - 1){
+      st.finalePassedThreshold = passed;
+      st.finaleEnough = st.kudaDevatsya >= CONFIG.FINALE_THRESHOLD;
+      st.screen = "finale";
       return;
     }
 
-    const premium = Math.floor((st.quarterScore - threshold) / 100);
-    st.currency += premium;
-    st.log.unshift({ type: "premium", quarter: st.quarterIndex + 1, premium, currency: st.currency });
-
-    if (st.quarterIndex === CONFIG.THRESHOLDS.length - 1){
-      st.screen = "victory";
+    if (!passed){
+      st.screen = "gameover-early";
       return;
     }
 
     st.shopOffers = Array.from({ length: CONFIG.SHOP_SIZE }, () => {
-      const def = CONFIG.JOKERS[Math.floor(st.rng() * CONFIG.JOKERS.length)];
+      const def = CONFIG.ITEMS[Math.floor(st.rng() * CONFIG.ITEMS.length)];
       return { id: def.id, bought: false };
     });
     st.screen = "shop";
   },
 
-  buyJoker(offerIdx){
+  buyItem(offerIdx){
     const st = this.state;
     const offer = st.shopOffers[offerIdx];
     if (!offer || offer.bought) return;
-    const def = jokerDef(offer.id);
-    if (st.currency < def.price){
-      st.message = "Не хватает премии."; this.render(); return;
-    }
-    if (st.jokerSlots.length >= CONFIG.MAX_JOKER_SLOTS){
-      st.message = "Все слоты коллег заняты."; this.render(); return;
-    }
-    st.currency -= def.price;
-    st.jokerSlots.push({ id: def.id, quartersUsed: 0 });
+    const def = itemDef(offer.id);
+    if (st.kukishi < def.price){ st.message = "Не хватает кукишей."; this.render(); return; }
+    if (st.itemSlots.length >= CONFIG.MAX_ITEM_SLOTS){ st.message = "Все слоты заняты."; this.render(); return; }
+    st.kukishi -= def.price;
+    st.itemSlots.push({ id: def.id, quartersUsed: 0 });
     offer.bought = true;
     st.message = "";
     this.render();
   },
 
-  moveJokerSlot(idx, dir){
+  moveItemSlot(idx, dir){
     const st = this.state;
     const j = idx + dir;
-    if (j < 0 || j >= st.jokerSlots.length) return;
-    const tmp = st.jokerSlots[idx];
-    st.jokerSlots[idx] = st.jokerSlots[j];
-    st.jokerSlots[j] = tmp;
+    if (j < 0 || j >= st.itemSlots.length) return;
+    const tmp = st.itemSlots[idx];
+    st.itemSlots[idx] = st.itemSlots[j];
+    st.itemSlots[j] = tmp;
     this.render();
   },
 
@@ -546,8 +507,8 @@ const App = {
     if (st.screen === "start") html = this.renderStart();
     else if (st.screen === "day") html = this.renderDay();
     else if (st.screen === "shop") html = this.renderShop();
-    else if (st.screen === "gameover") html = this.renderEnd(false);
-    else if (st.screen === "victory") html = this.renderEnd(true);
+    else if (st.screen === "gameover-early") html = this.renderGameOverEarly();
+    else if (st.screen === "finale") html = this.renderFinale();
     document.getElementById("app").innerHTML = html;
   },
 
@@ -555,48 +516,48 @@ const App = {
     const st = this.state;
     return `
       <h1>Батракан</h1>
-      <div class="box">
-        <p>Офисный деклбилдер-календарь. Пакуй задачи в рабочий день, набирай очки за квартал.</p>
-        <p>Очки = Результат × Видимость. Пороги по кварталам: ${CONFIG.THRESHOLDS.join(", ")}.</p>
+      <div class="box lore">
+        В некоторой конторке, не столь отдалённой, сидел батракан и колупал циферки.
+        Приказы шли сверху, конца им было не видно. Директора конторки не видал ни один
+        батракан — только его волю. Личное дело батракана лежало у Кудесницы Алеси
+        в отделе кадров, и счёт вела она одна.
       </div>
       <div class="box">
+        <p>Очки = Наколупано × Замечено. Пороги по кварталам: ${CONFIG.THRESHOLDS.join(", ")}.</p>
         <div class="row">Seed (число или любой текст, можно оставить пустым):</div>
         <div class="row"><input type="text" id="seedInput" value="${st.seedText}"></div>
-        <button data-action="start-run">Начать забег</button>
+        <button data-action="start-run">Батраканить</button>
       </div>
     `;
   },
 
-  renderJokerSlots(){
+  renderItemSlots(){
     const st = this.state;
     const slotsHtml = [];
-    for (let i = 0; i < CONFIG.MAX_JOKER_SLOTS; i++){
-      const slot = st.jokerSlots[i];
-      if (!slot){
-        slotsHtml.push(`<div class="joker-slot empty">пусто</div>`);
-        continue;
-      }
-      const def = jokerDef(slot.id);
+    for (let i = 0; i < CONFIG.MAX_ITEM_SLOTS; i++){
+      const slot = st.itemSlots[i];
+      if (!slot){ slotsHtml.push(`<div class="item-slot empty">пусто</div>`); continue; }
+      const def = itemDef(slot.id);
       let status = "";
-      if (slot.id === "hr"){
-        status = isJokerActive(slot)
-          ? " (квартал " + slot.quartersUsed + "/" + CONFIG.HR_ACTIVE_QUARTERS + ")"
-          : " — СЛОМАН";
+      if (slot.id === "kudesnitsa"){
+        status = isItemActive(slot)
+          ? " (квартал " + slot.quartersUsed + "/" + CONFIG.KUDESNITSA_ACTIVE_QUARTERS + ")"
+          : " — истаяло";
       }
-      const useBtn = (slot.id === "vacation" && st.screen === "day")
-        ? `<div><button data-action="use-vacation" data-slot-idx="${i}">Использовать (съест день)</button></div>`
+      const useBtn = (def.oneTime && st.screen === "day")
+        ? `<div><button data-action="use-item" data-slot-idx="${i}">Использовать</button></div>`
         : "";
-      slotsHtml.push(`<div class="joker-slot">
+      slotsHtml.push(`<div class="item-slot">
         <b>${def.name}</b>${status}<br>
         <span class="small">${def.desc}</span>
         ${useBtn}
         <div>
-          <button data-action="move-joker-up" data-slot-idx="${i}" ${i === 0 ? "disabled" : ""}>▲</button>
-          <button data-action="move-joker-down" data-slot-idx="${i}" ${i === st.jokerSlots.length - 1 ? "disabled" : ""}>▼</button>
+          <button data-action="move-item-up" data-slot-idx="${i}" ${i === 0 ? "disabled" : ""}>▲</button>
+          <button data-action="move-item-down" data-slot-idx="${i}" ${i === st.itemSlots.length - 1 ? "disabled" : ""}>▼</button>
         </div>
       </div>`);
     }
-    return `<div class="joker-slots">${slotsHtml.join("")}</div>`;
+    return `<div class="item-slots">${slotsHtml.join("")}</div>`;
   },
 
   renderBacklog(){
@@ -605,10 +566,10 @@ const App = {
       const armed = st.pendingPlaceCardId === c.id;
       const checked = st.selectedBacklog.has(c.id);
       return `<div class="backlog-card ${armed ? "armed" : ""}" draggable="true" data-action="arm-card" data-card-id="${c.id}">
-        <label><input type="checkbox" data-action="toggle-discard-select" data-card-id="${c.id}" ${checked ? "checked" : ""}> для делегирования</label><br>
+        <label><input type="checkbox" data-action="toggle-discard-select" data-card-id="${c.id}" ${checked ? "checked" : ""}> спихнуть на соседа</label><br>
         <span class="name">${c.name}</span><br>
-        Проект: ${c.project} · Тип: ${typeLabel(c.type)}<br>
-        Часы: ${c.hours}ч · Результат: ${c.result} · Видимость: ${c.vis}
+        ${c.sizeLabel} · ${c.hours}ч<br>
+        Наколупано: ${c.base} · Замечено: ${c.mult}
       </div>`;
     }).join("");
   },
@@ -616,24 +577,37 @@ const App = {
   renderCalendar(){
     const st = this.state;
     const startH = CONFIG.DAY_START_HOUR, endH = CONFIG.DAY_END_HOUR;
+    const otInfo = computeOvertime(st.dayPlaced, st.itemSlots);
+    const hourStatus = new Map();
+    otInfo.freeHours.forEach(h => hourStatus.set(h, "free"));
+    otInfo.paidHours.forEach(h => hourStatus.set(h, "paid"));
+
     let cells = "";
     for (let h = startH; h < endH; h++){
       const rowIdx = (h - startH) + 1;
-      let cls = "normal";
-      let text = "";
-      let droppable = true;
-      if (h === CONFIG.LUNCH_HOUR){ cls = "lunch"; text = "Обед"; droppable = false; }
-      else if (st.dayBlockedHours.has(h)){ cls = "blocked"; text = "недоступно (Выгорание)"; droppable = false; }
-      else if (h >= CONFIG.OVERTIME_START_HOUR){ cls = "overtime"; text = "овертайм"; }
+      let cls = "normal", text = "", droppable = true;
+      if (h === CONFIG.LUNCH_HOUR){ cls = "lunch"; text = "обед"; droppable = false; }
+      else if (st.dayBlockedHours.has(h)){ cls = "blocked"; text = "недоступно"; droppable = false; }
+      else if (h >= CONFIG.OVERTIME_START_HOUR){ cls = "overtime"; text = "переработка"; }
 
       cells += `<div class="hour-label" style="grid-row:${rowIdx}">${h}:00</div>`;
       cells += `<div class="hour-cell ${cls}" style="grid-row:${rowIdx}" ${droppable ? `data-action="place-here" data-hour="${h}"` : ""}>${text}</div>`;
     }
+
+    if (st.forcedBlock){
+      const fb = st.forcedBlock;
+      const rowStart = (fb.startHour - startH) + 1;
+      cells += `<div class="comm-block" style="grid-row:${rowStart} / span ${fb.hours}" data-action="forced-block-click">
+        <b>Общение</b><br>${fb.label}
+      </div>`;
+    }
+
     st.dayPlaced.forEach(p => {
       const rowStart = (p.startHour - startH) + 1;
-      const projIdx = projectIndex(p.card.project);
-      cells += `<div class="task-block proj-${projIdx}" style="grid-row:${rowStart} / span ${p.card.hours}" data-action="unplace-card" data-card-id="${p.card.id}">
-        <b>${p.card.name}</b><br>Р ${p.card.result} · В ${p.card.vis} · ${p.card.hours}ч
+      const paidCount = p.occupiedHours.filter(h => hourStatus.get(h) === "paid").length;
+      const otTxt = paidCount > 0 ? `<br><span class="small">+${paidCount} Выгорания, +${paidCount} кукишей</span>` : "";
+      cells += `<div class="task-block type-${p.card.type}" style="grid-row:${rowStart} / span ${p.card.hours}" data-action="unplace-card" data-card-id="${p.card.id}">
+        <b>${p.card.name}</b><br>Н ${p.card.base} · З ${p.card.mult} · ${p.card.hours}ч${otTxt}
       </div>`;
     });
     return `<div class="calendar">${cells}</div>`;
@@ -642,40 +616,41 @@ const App = {
   renderDay(){
     const st = this.state;
     const threshold = CONFIG.THRESHOLDS[st.quarterIndex];
-    const preview = computeDayScore(st.dayPlaced.map(p => p.card), st.jokerSlots);
-    const otPreview = computeOvertime(st.dayPlaced, st.jokerSlots);
+    const preview = computeDayScore(st.dayPlaced.map(p => p.card), st.itemSlots);
+    const otPreview = computeOvertime(st.dayPlaced, st.itemSlots);
+    const kudaLine = st.quarterIndex >= 1 ? ` · Куда деваться: ${st.kudaDevatsya}` : "";
 
     return `
       <h1>Батракан</h1>
       <div class="box">
-        <div class="row">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · День ${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER} (${CONFIG.WEEKDAYS[st.dayIndex]})</div>
-        <div class="row">Прогресс: <b>${st.quarterScore} / ${threshold}</b> · Выгорание: ${st.totalBurnout} (сокращение дня: -${st.dayShrink}ч) · Премия: ${st.currency} · Seed: ${st.seed}</div>
-        <div class="row">Делегирований: ${st.discardsUsedToday} / ${CONFIG.DISCARDS_PER_DAY} · В колоде: ${st.deck.length} · Бэклог: ${st.hand.length}</div>
+        <div class="row">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · ${CONFIG.WEEKDAYS[st.dayIndex]} (${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER})</div>
+        <div class="row">Прогресс: <b>${st.quarterScore} / ${threshold}</b> · Выгорание: ${st.totalBurnout} (день короче на ${st.dayShrink}ч) · Кукиши: ${st.kukishi} · Seed: ${st.seed}${kudaLine}</div>
+        <div class="row">Спихнуть на соседа: ${st.discardsUsedToday} / ${CONFIG.DISCARDS_PER_DAY} · В колоде: ${st.deck.length} · В руке: ${st.hand.length}</div>
       </div>
-      ${this.renderJokerSlots()}
+      ${this.renderItemSlots()}
       <div class="cols">
         <div class="col" style="max-width:260px">
           <div class="box">
-            <h3>Бэклог</h3>
+            <h3>Рука</h3>
             ${this.renderBacklog()}
             <div class="row msg">${st.message || ""}</div>
-            <button data-action="discard-backlog">Делегировать выбранные</button>
+            <button data-action="discard-backlog">Спихнуть выбранные</button>
           </div>
         </div>
         <div class="col">
           <div class="box">
-            <h3>Календарь дня</h3>
+            <h3>Календарь</h3>
             <div class="calendar-wrap">${this.renderCalendar()}</div>
             <div class="formula-bar">
-              Результат ${preview.result} × Видимость ${fmt(preview.vis)} = ${preview.score}
-              &nbsp;·&nbsp; Овертайм сейчас: ${otPreview.overtimeHours.length}ч, из них платно: ${otPreview.paidHours.length}ч (+${otPreview.burnout} Выгорания)
+              Наколупано ${preview.result} × Замечено ${fmt(preview.vis)} = ${preview.score}
+              &nbsp;·&nbsp; Переработка сейчас: ${otPreview.overtimeHours.length}ч, платно: ${otPreview.paidHours.length}ч (+${otPreview.burnout} Выгорания, +${otPreview.kukishi} кукишей)
             </div>
             <div class="row"><button data-action="submit-day">Сдать день</button></div>
           </div>
         </div>
       </div>
       <div class="box">
-        <h3>Журнал</h3>
+        <h3>Личное дело</h3>
         ${this.renderLog()}
       </div>
     `;
@@ -687,41 +662,43 @@ const App = {
       if (entry.type === "quarter-start"){
         return `<div class="log-entry"><b>— Квартал ${entry.quarter} начался. Порог: ${entry.threshold} —</b></div>`;
       }
+      if (entry.type === "comm-order"){
+        return `<div class="log-entry lore">За усердие батракану назначено общение: ${entry.flavor}.</div>`;
+      }
       if (entry.type === "day-start"){
         const blockedTxt = entry.blocked.length ? entry.blocked.join(", ") + ":00" : "нет";
-        return `<div class="log-entry">День ${entry.day} (${entry.weekday}), квартал ${entry.quarter}. Заблокировано Выгоранием: ${blockedTxt}.</div>`;
+        return `<div class="log-entry">Квартал ${entry.quarter}, ${entry.weekday}. Недоступно из-за Выгорания: ${blockedTxt}.</div>`;
       }
       if (entry.type === "discard"){
         const list = entry.cards.map(c => c.name).join("; ");
-        return `<div class="log-entry">Делегировано (${entry.used}/${CONFIG.DISCARDS_PER_DAY}): ${list}</div>`;
+        return `<div class="log-entry">Спихнуто (${entry.used}/${CONFIG.DISCARDS_PER_DAY}): ${list}</div>`;
       }
       if (entry.type === "day-end"){
-        const s = entry.scoreInfo, ot = entry.overtimeInfo;
-        const cardsList = entry.cards.map(c => `${c.name} (Рез. ${c.result}, Вид. ${c.vis}, ${c.hours}ч, ${c.project}, ${typeLabel(c.type)})`).join("; ") || "нет задач";
+        const s = entry.scoreInfo, ot = entry.otInfo;
+        const cardsList = entry.cards.map(c => `${c.name} (Н${c.base}, З${c.mult}, ${c.hours}ч, ${c.sizeLabel})`).join("; ") || "нет циферок";
         const stepsList = s.steps.length
           ? s.steps.map(st2 => st2.broken
-              ? st2.name + ": сломан, эффект не применён"
-              : st2.name + ": Рез. " + st2.before.result + "→" + st2.after.result + ", Вид. " + fmt(st2.before.vis) + "→" + fmt(st2.after.vis)
+              ? st2.name + ": истаяло, эффект не применён"
+              : st2.name + ": Наколупано " + st2.before.result + "→" + st2.after.result + ", Замечено " + fmt(st2.before.vis) + "→" + fmt(st2.after.vis)
             ).join("<br>")
           : "нет";
+        const kudaTxt = entry.quarter >= 2 ? ` · Куда деваться +${entry.emptyHours} (итого ${st.kudaDevatsya})` : "";
         return `<div class="log-entry">
-          <b>Квартал ${entry.quarter}, день ${entry.day}: сдан</b><br>
-          Задачи: ${cardsList}<br>
-          Результат (сумма карт): ${s.resultBase} · Видимость (сумма карт): ${s.visBase}<br>
-          Джокеры (по порядку слотов):<br>${stepsList}<br>
+          <b>Квартал ${entry.quarter}, ${CONFIG.WEEKDAYS[entry.day - 1]}: день сдан</b><br>
+          Циферки: ${cardsList}<br>
+          Наколупано (сумма): ${s.resultBase} · Замечено (сумма): ${s.visBase}<br>
+          Предметы (по порядку слотов):<br>${stepsList}<br>
           Итог дня: ${s.result} × ${fmt(s.vis)} = <b>${s.score}</b><br>
-          Овертайм: ${ot.overtimeHours.join(", ") || "нет"} · бесплатно: ${ot.freeHours.join(", ") || "—"} · платно: ${ot.paidHours.join(", ") || "—"} → +${ot.burnout} Выгорания (итого: ${entry.totalBurnout})<br>
+          Переработка: ${ot.overtimeHours.join(", ") || "нет"} · платно: ${ot.paidHours.join(", ") || "—"} → +${ot.burnout} Выгорания, +${ot.kukishi} кукишей${kudaTxt}<br>
           Накоплено в квартале: ${entry.runningTotal}
         </div>`;
       }
-      if (entry.type === "vacation"){
-        return `<div class="log-entry">Использован «Отпуск»: день ${entry.day} съеден целиком, Выгорание ${entry.before} → ${entry.after}.</div>`;
+      if (entry.type === "onetime-item"){
+        const dayTxt = entry.eatsDay ? "день съеден целиком" : "день не тронут";
+        return `<div class="log-entry">Применено «${entry.name}»: Выгорание ${entry.before} → ${entry.after}, ${dayTxt}.</div>`;
       }
       if (entry.type === "quarter-end"){
-        return `<div class="log-entry"><b>Квартал ${entry.quarter} завершён: ${entry.score} / ${entry.threshold} — ${entry.passed ? "порог пройден" : "порог НЕ пройден"}</b></div>`;
-      }
-      if (entry.type === "premium"){
-        return `<div class="log-entry">Премия за квартал ${entry.quarter}: +${entry.premium}. Баланс: ${entry.currency}</div>`;
+        return `<div class="log-entry"><b>Квартал ${entry.quarter} завершён: ${entry.score} / ${entry.threshold} — ${entry.passed ? "порог взят" : "порог НЕ взят"}</b></div>`;
       }
       return "";
     }).join("");
@@ -730,49 +707,64 @@ const App = {
   renderShop(){
     const st = this.state;
     const offers = st.shopOffers.map((offer, idx) => {
-      const def = jokerDef(offer.id);
-      const canBuy = !offer.bought && st.currency >= def.price && st.jokerSlots.length < CONFIG.MAX_JOKER_SLOTS;
+      const def = itemDef(offer.id);
+      const canBuy = !offer.bought && st.kukishi >= def.price && st.itemSlots.length < CONFIG.MAX_ITEM_SLOTS;
       return `<div class="backlog-card" style="width:260px;display:inline-block;vertical-align:top;margin-right:8px;">
         <b>${def.name}</b> (цена: ${def.price})<br>
         <span class="small">${def.desc}</span><br>
-        <button data-action="buy-joker" data-offer-idx="${idx}" ${canBuy ? "" : "disabled"}>${offer.bought ? "Куплено" : "Купить"}</button>
+        <button data-action="buy-item" data-offer-idx="${idx}" ${canBuy ? "" : "disabled"}>${offer.bought ? "Куплено" : "Купить"}</button>
       </div>`;
     }).join("");
 
     return `
-      <h1>Батракан — Магазин</h1>
+      <h1>Конторка</h1>
       <div class="box">
-        <div class="row">Премия: ${st.currency} · Слоты коллег: ${st.jokerSlots.length} / ${CONFIG.MAX_JOKER_SLOTS}</div>
+        <div class="row">Кукиши: ${st.kukishi} · Слоты: ${st.itemSlots.length} / ${CONFIG.MAX_ITEM_SLOTS}</div>
         <div class="row msg">${st.message || ""}</div>
       </div>
-      <div class="box">
-        <h3>Предложения</h3>
-        ${offers}
-      </div>
-      ${this.renderJokerSlots()}
-      <div class="box">
-        <button data-action="continue-shop">Дальше (квартал ${st.quarterIndex + 2})</button>
-      </div>
-      <div class="box">
-        <h3>Журнал</h3>
-        ${this.renderLog()}
-      </div>
+      <div class="box"><h3>Предложения</h3>${offers}</div>
+      ${this.renderItemSlots()}
+      <div class="box"><button data-action="continue-shop">Дальше (квартал ${st.quarterIndex + 2})</button></div>
+      <div class="box"><h3>Личное дело</h3>${this.renderLog()}</div>
     `;
   },
 
-  renderEnd(won){
+  renderGameOverEarly(){
     const st = this.state;
     return `
-      <h1>Батракан — ${won ? "Забег пройден!" : "Конец забега"}</h1>
+      <h1>Батракан</h1>
+      <div class="box lore">
+        Порог не взят. Шабашка кончилась, не дотянув до положенного.
+        Контора этого не заметила — циферки не различают уставших.
+      </div>
       <div class="box">
-        <div class="row">${won ? "Все 5 кварталов пройдены." : "Порог квартала " + (st.quarterIndex + 1) + " не пройден."}</div>
-        <div class="row">Итоговая премия: ${st.currency} · Итоговое Выгорание: ${st.totalBurnout} · Seed: ${st.seed}</div>
+        <div class="row">Квартал: ${st.quarterIndex + 1} · Счёт: ${st.quarterScore} / ${CONFIG.THRESHOLDS[st.quarterIndex]}</div>
+        <div class="row">Выгорание: ${st.totalBurnout} · Кукиши: ${st.kukishi} · Куда деваться: ${st.kudaDevatsya} · Seed: ${st.seed}</div>
         <button data-action="restart">Играть заново</button>
       </div>
-      <div class="box">
-        <h3>Журнал</h3>
-        ${this.renderLog()}
+      <div class="box"><h3>Личное дело</h3>${this.renderLog()}</div>
+    `;
+  },
+
+  renderFinale(){
+    const st = this.state;
+    const middle = st.finaleEnough
+      ? "У батракана находится, что ответить. Он поднимается и уходит из конторки, не оборачиваясь."
+      : "Батракан молчит. Сказать-то и нечего.";
+    return `
+      <h1>Батракан</h1>
+      <div class="box lore">
+        Кудесница Алеся достаёт личное дело батракана, глядит в него долго и спрашивает ласково:<br>
+        «Покуда же ты денешься без шабашки?»<br><br>
+        ${middle}<br><br>
+        Наутро на его месте сидит другой батракан — да отзывается на то же самое имя.
       </div>
+      <div class="box">
+        <div class="row">Квартал 5: ${st.quarterScore} / ${CONFIG.THRESHOLDS[4]} (${st.finalePassedThreshold ? "порог взят" : "порог не взят"})</div>
+        <div class="row">Выгорание: ${st.totalBurnout} · Кукиши: ${st.kukishi} · Куда деваться: ${st.kudaDevatsya} (порог финала: ${CONFIG.FINALE_THRESHOLD}) · Seed: ${st.seed}</div>
+        <button data-action="restart">Играть заново</button>
+      </div>
+      <div class="box"><h3>Личное дело</h3>${this.renderLog()}</div>
     `;
   }
 };
@@ -793,20 +785,22 @@ document.addEventListener("click", function(e){
     App.onCellClick(Number(el.dataset.hour));
   } else if (action === "unplace-card"){
     App.unplaceCard(el.dataset.cardId);
+  } else if (action === "forced-block-click"){
+    App.onForcedBlockClick();
   } else if (action === "discard-backlog"){
     App.discardBacklog();
   } else if (action === "submit-day"){
     App.submitDay();
-  } else if (action === "use-vacation"){
-    App.useVacation(Number(el.dataset.slotIdx));
-  } else if (action === "buy-joker"){
-    App.buyJoker(Number(el.dataset.offerIdx));
+  } else if (action === "use-item"){
+    App.useOneTimeItem(Number(el.dataset.slotIdx));
+  } else if (action === "buy-item"){
+    App.buyItem(Number(el.dataset.offerIdx));
   } else if (action === "continue-shop"){
     App.continueToNextQuarter();
-  } else if (action === "move-joker-up"){
-    App.moveJokerSlot(Number(el.dataset.slotIdx), -1);
-  } else if (action === "move-joker-down"){
-    App.moveJokerSlot(Number(el.dataset.slotIdx), 1);
+  } else if (action === "move-item-up"){
+    App.moveItemSlot(Number(el.dataset.slotIdx), -1);
+  } else if (action === "move-item-down"){
+    App.moveItemSlot(Number(el.dataset.slotIdx), 1);
   } else if (action === "restart"){
     App.restart();
   }
