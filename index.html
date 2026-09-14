@@ -18,9 +18,20 @@
   .lore{font-style:italic;color:#333;}
   h1,h2,h3{margin:6px 0;}
 
-  .backlog-card{border:1px solid #999;padding:5px;margin-bottom:5px;font-size:12px;background:#fafafa;}
-  .backlog-card.armed{border:2px solid #333;background:#f0f0f0;}
-  .backlog-card .name{font-weight:bold;}
+  .hand-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .backlog-card{width:150px;height:180px;box-sizing:border-box;border:1px solid #999;background:#fff;overflow:hidden;position:relative;font-size:12px;}
+  .backlog-card.armed{border:2px solid #222;}
+  .card-art{height:96px;position:relative;display:flex;align-items:center;justify-content:center;}
+  .card-art.type-trud{background:#FAEEDA;}
+  .card-art.type-pokazuha{background:#EEEDFE;}
+  .card-hours-badge{position:absolute;top:6px;left:6px;background:#222;color:#fff;font-size:11px;line-height:1;padding:2px 6px;}
+  .card-body{padding:6px 8px;}
+  .card-name{font-size:12px;font-weight:bold;line-height:1.15;height:2.3em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .card-rule{border-top:1px solid #ddd;margin:5px 0;}
+  .card-numbers{display:flex;justify-content:space-between;align-items:baseline;}
+  .card-numbers .base{font-size:20px;font-weight:bold;}
+  .card-numbers .mult{font-size:15px;color:#7C5CFC;font-weight:bold;}
+  .card-discard-row{font-size:10px;color:#666;padding:2px 8px 4px;}
 
   .item-slots{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
   .item-slot{border:1px solid #999;padding:6px;width:220px;font-size:11px;}
@@ -34,10 +45,18 @@
   .hour-cell.overtime{background:#ffe4e1;}
   .hour-cell.lunch{background:#eeeeee;color:#777;}
   .hour-cell.blocked{background:#e2e2e2;color:#777;background-image:repeating-linear-gradient(45deg,#ddd 0,#ddd 2px,#eee 2px,#eee 6px);}
-  .task-block{grid-column:2;border:1px solid #555;padding:3px 5px;font-size:11px;overflow:hidden;cursor:pointer;}
-  .type-trud{background:#dbe9ff;}
-  .type-pokazuha{background:#fff2cf;}
-  .comm-block{grid-column:2;border:1px dashed #666;padding:3px 5px;font-size:11px;overflow:hidden;background:#e8e8e8;cursor:default;}
+  .task-block{grid-column:2;border:1px solid rgba(0,0,0,0.25);padding:2px 6px;font-size:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:1px;}
+  .task-block.type-trud{background:#FAEEDA;}
+  .task-block.type-pokazuha{background:#EEEDFE;}
+  .tb-main{display:flex;justify-content:space-between;gap:6px;}
+  .tb-name{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tb-nums{flex-shrink:0;color:#333;}
+  .tb-ot{font-size:10px;color:#7C5CFC;}
+  .comm-block{grid-column:2;border:1px dashed #666;padding:2px 6px;font-size:12px;overflow:hidden;background:#e8e8e8;cursor:default;display:flex;flex-direction:column;justify-content:center;}
+
+  .legend-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .legend-box{background:#fff;border:1px solid #333;padding:16px;max-width:420px;font-size:13px;}
+  .legend-box h3{margin-top:0;}
 
   .formula-bar{border:1px solid #333;padding:8px;font-size:15px;font-weight:bold;margin-top:8px;}
 </style>
@@ -119,6 +138,27 @@ CONFIG.CARDS = (function buildCards(){
 function itemDef(id){ return CONFIG.ITEMS.find(j => j.id === id); }
 function countOwned(itemSlots, id){ return itemSlots.filter(s => s.id === id).length; }
 function fmt(n){ return Math.round(n * 100) / 100; }
+
+// Заглушки: один набор примитивных SVG-иконок по типу, заменить позже.
+const ICONS = {
+  trud: `<svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="10" y="6" width="24" height="32" rx="2" stroke="#333" stroke-width="2"/>
+    <line x1="15" y1="15" x2="29" y2="15" stroke="#333" stroke-width="2"/>
+    <line x1="15" y1="22" x2="29" y2="22" stroke="#333" stroke-width="2"/>
+    <line x1="15" y1="29" x2="24" y2="29" stroke="#333" stroke-width="2"/>
+  </svg>`,
+  pokazuha: `<svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="22" r="9" stroke="#333" stroke-width="2"/>
+    <line x1="22" y1="4" x2="22" y2="9" stroke="#333" stroke-width="2"/>
+    <line x1="22" y1="35" x2="22" y2="40" stroke="#333" stroke-width="2"/>
+    <line x1="4" y1="22" x2="9" y2="22" stroke="#333" stroke-width="2"/>
+    <line x1="35" y1="22" x2="40" y2="22" stroke="#333" stroke-width="2"/>
+    <line x1="9" y1="9" x2="12.5" y2="12.5" stroke="#333" stroke-width="2"/>
+    <line x1="31.5" y1="31.5" x2="35" y2="35" stroke="#333" stroke-width="2"/>
+    <line x1="9" y1="35" x2="12.5" y2="31.5" stroke="#333" stroke-width="2"/>
+    <line x1="31.5" y1="12.5" x2="35" y2="9" stroke="#333" stroke-width="2"/>
+  </svg>`
+};
 
 /* ======================= RNG ======================= */
 function hashStringToInt(str){
@@ -230,7 +270,8 @@ const App = {
       log: [],
       message: "",
       pendingPlaceCardId: null,
-      selectedBacklog: new Set()
+      selectedBacklog: new Set(),
+      showLegend: true
     };
     this.newQuarter();
     this.render();
@@ -509,7 +550,22 @@ const App = {
     else if (st.screen === "shop") html = this.renderShop();
     else if (st.screen === "gameover-early") html = this.renderGameOverEarly();
     else if (st.screen === "finale") html = this.renderFinale();
+    if (st.showLegend) html += this.renderLegend();
     document.getElementById("app").innerHTML = html;
+  },
+
+  renderLegend(){
+    return `<div class="legend-overlay">
+      <div class="legend-box">
+        <h3>Как читать циферку</h3>
+        <div class="row">Число в тёмной плашке в углу арта — часы: сколько займёт в календаре.</div>
+        <div class="row">Крупное число внизу карты — Наколупано (складывается в Результат).</div>
+        <div class="row">Число со знаком «+» — Замечено (складывается в Множитель).</div>
+        <div class="row">Очки дня = сумма Наколупано × сумма Замечено по всем сыгранным циферкам.</div>
+        <div class="row">В календаре то же самое в одну строку: «48 · +2» — Наколупано 48, Замечено +2.</div>
+        <button data-action="close-legend">Понятно</button>
+      </div>
+    </div>`;
   },
 
   renderStart(){
@@ -562,16 +618,24 @@ const App = {
 
   renderBacklog(){
     const st = this.state;
-    return st.hand.map(c => {
+    return `<div class="hand-row">${st.hand.map(c => {
       const armed = st.pendingPlaceCardId === c.id;
       const checked = st.selectedBacklog.has(c.id);
-      return `<div class="backlog-card ${armed ? "armed" : ""}" draggable="true" data-action="arm-card" data-card-id="${c.id}">
-        <label><input type="checkbox" data-action="toggle-discard-select" data-card-id="${c.id}" ${checked ? "checked" : ""}> спихнуть на соседа</label><br>
-        <span class="name">${c.name}</span><br>
-        ${c.sizeLabel} · ${c.hours}ч<br>
-        Наколупано: ${c.base} · Замечено: ${c.mult}
+      return `<div>
+        <div class="backlog-card ${armed ? "armed" : ""}" draggable="true" data-action="arm-card" data-card-id="${c.id}">
+          <div class="card-art type-${c.type}">
+            <div class="card-hours-badge">${c.hours}ч</div>
+            ${ICONS[c.type]}
+          </div>
+          <div class="card-body">
+            <div class="card-name">${c.name}</div>
+            <div class="card-rule"></div>
+            <div class="card-numbers"><span class="base">${c.base}</span><span class="mult">+${c.mult}</span></div>
+          </div>
+        </div>
+        <label class="card-discard-row"><input type="checkbox" data-action="toggle-discard-select" data-card-id="${c.id}" ${checked ? "checked" : ""}> спихнуть на соседа</label>
       </div>`;
-    }).join("");
+    }).join("")}</div>`;
   },
 
   renderCalendar(){
@@ -598,16 +662,17 @@ const App = {
       const fb = st.forcedBlock;
       const rowStart = (fb.startHour - startH) + 1;
       cells += `<div class="comm-block" style="grid-row:${rowStart} / span ${fb.hours}" data-action="forced-block-click">
-        <b>Общение</b><br>${fb.label}
+        <div class="tb-main"><span class="tb-name">Общение</span><span class="tb-nums">${fb.label}</span></div>
       </div>`;
     }
 
     st.dayPlaced.forEach(p => {
       const rowStart = (p.startHour - startH) + 1;
       const paidCount = p.occupiedHours.filter(h => hourStatus.get(h) === "paid").length;
-      const otTxt = paidCount > 0 ? `<br><span class="small">+${paidCount} Выгорания, +${paidCount} кукишей</span>` : "";
+      const otTxt = paidCount > 0 ? `<div class="tb-ot">+${paidCount} Выгорания, +${paidCount} кукишей</div>` : "";
       cells += `<div class="task-block type-${p.card.type}" style="grid-row:${rowStart} / span ${p.card.hours}" data-action="unplace-card" data-card-id="${p.card.id}">
-        <b>${p.card.name}</b><br>Н ${p.card.base} · З ${p.card.mult} · ${p.card.hours}ч${otTxt}
+        <div class="tb-main"><span class="tb-name">${p.card.name}</span><span class="tb-nums">${p.card.base} · +${p.card.mult}</span></div>
+        ${otTxt}
       </div>`;
     });
     return `<div class="calendar">${cells}</div>`;
@@ -625,7 +690,7 @@ const App = {
       <div class="box">
         <div class="row">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · ${CONFIG.WEEKDAYS[st.dayIndex]} (${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER})</div>
         <div class="row">Прогресс: <b>${st.quarterScore} / ${threshold}</b> · Выгорание: ${st.totalBurnout} (день короче на ${st.dayShrink}ч) · Кукиши: ${st.kukishi} · Seed: ${st.seed}${kudaLine}</div>
-        <div class="row">Спихнуть на соседа: ${st.discardsUsedToday} / ${CONFIG.DISCARDS_PER_DAY} · В колоде: ${st.deck.length} · В руке: ${st.hand.length}</div>
+        <div class="row">Спихнуть на соседа: ${st.discardsUsedToday} / ${CONFIG.DISCARDS_PER_DAY} · В колоде: ${st.deck.length} · В руке: ${st.hand.length} <button data-action="show-legend">?</button></div>
       </div>
       ${this.renderItemSlots()}
       <div class="cols">
@@ -719,7 +784,7 @@ const App = {
     return `
       <h1>Конторка</h1>
       <div class="box">
-        <div class="row">Кукиши: ${st.kukishi} · Слоты: ${st.itemSlots.length} / ${CONFIG.MAX_ITEM_SLOTS}</div>
+        <div class="row">Кукиши: ${st.kukishi} · Слоты: ${st.itemSlots.length} / ${CONFIG.MAX_ITEM_SLOTS} <button data-action="show-legend">?</button></div>
         <div class="row msg">${st.message || ""}</div>
       </div>
       <div class="box"><h3>Предложения</h3>${offers}</div>
@@ -803,6 +868,10 @@ document.addEventListener("click", function(e){
     App.moveItemSlot(Number(el.dataset.slotIdx), 1);
   } else if (action === "restart"){
     App.restart();
+  } else if (action === "show-legend"){
+    App.state.showLegend = true; App.render();
+  } else if (action === "close-legend"){
+    App.state.showLegend = false; App.render();
   }
 });
 
