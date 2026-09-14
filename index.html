@@ -11,16 +11,18 @@
   button:disabled{cursor:default;opacity:0.5;}
   input[type=text]{font-family:monospace;padding:2px;}
   .log-entry{border-top:1px dashed #999;padding:6px 0;}
-  .cols{display:flex;gap:16px;flex-wrap:wrap;}
-  .col{flex:1;min-width:260px;}
   .small{font-size:11px;color:#333;}
   .msg{font-weight:bold;}
   .lore{font-style:italic;color:#333;}
   h1,h2,h3{margin:6px 0;}
+  .header-line{font-size:15px;font-weight:bold;margin-bottom:10px;}
+  .footer-line{font-size:11px;color:#888;margin-top:16px;}
 
-  .hand-row{display:flex;flex-wrap:wrap;gap:8px;}
-  .backlog-card{width:150px;height:180px;box-sizing:border-box;border:1px solid #999;background:#fff;overflow:hidden;position:relative;font-size:12px;}
+  .hand-scroll{overflow-x:auto;padding-bottom:6px;}
+  .hand-row{display:flex;flex-wrap:nowrap;gap:8px;}
+  .backlog-card{flex:0 0 150px;width:150px;height:180px;box-sizing:border-box;border:1px solid #999;background:#fff;overflow:hidden;position:relative;font-size:12px;cursor:pointer;}
   .backlog-card.armed{border:2px solid #222;}
+  .backlog-card.discardable{border:2px dashed #c00;}
   .card-art{height:96px;position:relative;display:flex;align-items:center;justify-content:center;}
   .card-art.type-trud{background:#FAEEDA;}
   .card-art.type-pokazuha{background:#EEEDFE;}
@@ -31,14 +33,13 @@
   .card-numbers{display:flex;justify-content:space-between;align-items:baseline;}
   .card-numbers .base{font-size:20px;font-weight:bold;}
   .card-numbers .mult{font-size:15px;color:#7C5CFC;font-weight:bold;}
-  .card-discard-row{font-size:10px;color:#666;padding:2px 8px 4px;}
 
   .item-slots{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
   .item-slot{border:1px solid #999;padding:6px;width:220px;font-size:11px;}
   .item-slot.empty{border:1px dashed #bbb;color:#999;display:flex;align-items:center;justify-content:center;min-height:40px;}
 
-  .calendar-wrap{display:flex;gap:16px;}
-  .calendar{display:grid;grid-template-columns:56px 1fr;grid-auto-rows:34px;border:1px solid #999;}
+  .calendar-wrap{display:block;width:100%;}
+  .calendar{display:grid;grid-template-columns:56px 1fr;grid-auto-rows:34px;border:1px solid #999;width:100%;}
   .hour-label{grid-column:1;border-bottom:1px solid #ddd;border-right:1px solid #999;font-size:11px;padding:2px 4px;background:#f5f5f5;}
   .hour-cell{grid-column:2;border-bottom:1px solid #ddd;font-size:10px;color:#999;padding:2px 4px;}
   .hour-cell.normal{background:#ffffff;}
@@ -52,7 +53,7 @@
   .tb-name{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .tb-nums{flex-shrink:0;color:#333;}
   .tb-ot{font-size:10px;color:#7C5CFC;}
-  .comm-block{grid-column:2;border:1px dashed #666;padding:2px 6px;font-size:12px;overflow:hidden;background:#e8e8e8;cursor:default;display:flex;flex-direction:column;justify-content:center;}
+  .comm-block{grid-column:2;border:1px dashed #c00;color:#c00;padding:2px 6px;font-size:11px;overflow:hidden;background:#fff5f5;cursor:default;display:flex;align-items:center;}
 
   .legend-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:100;}
   .legend-box{background:#fff;border:1px solid #333;padding:16px;max-width:420px;font-size:13px;}
@@ -270,7 +271,7 @@ const App = {
       log: [],
       message: "",
       pendingPlaceCardId: null,
-      selectedBacklog: new Set(),
+      discardMode: false,
       showLegend: true
     };
     this.newQuarter();
@@ -304,11 +305,12 @@ const App = {
     st.discardsUsedToday = 0;
     st.message = "";
     st.pendingPlaceCardId = null;
-    st.selectedBacklog = new Set();
+    st.discardMode = false;
 
     const blockInfo = computeDayBlockedHours(st.totalBurnout);
     st.dayBlockedHours = blockInfo.blocked;
     st.dayShrink = blockInfo.shrink;
+    st.dayEffectiveHours = blockInfo.effectiveNormal;
 
     if (st.dayIndex === 0){
       st.forcedBlock = { startHour: 9, hours: 2, occupiedHours: [9, 10], label: st.commFlavorThisQuarter };
@@ -343,14 +345,38 @@ const App = {
     const card = st.hand.find(c => c.id === cardId);
     if (!card) return;
     st.pendingPlaceCardId = cardId;
+    st.discardMode = false;
     st.message = "Выбрана циферка «" + card.name + "». Кликни на свободную ячейку (или перетащи туда).";
     this.render();
   },
 
-  toggleDiscardSelect(cardId){
+  toggleDiscardMode(){
     const st = this.state;
-    if (st.selectedBacklog.has(cardId)) st.selectedBacklog.delete(cardId);
-    else st.selectedBacklog.add(cardId);
+    if (st.discardMode){
+      st.discardMode = false;
+      st.message = "";
+      this.render();
+      return;
+    }
+    if (st.discardsUsedToday >= CONFIG.DISCARDS_PER_DAY){
+      st.message = "На сегодня соседи кончились."; this.render(); return;
+    }
+    st.discardMode = true;
+    st.pendingPlaceCardId = null;
+    st.message = "Режим спихивания включён — кликни по циферке в руке.";
+    this.render();
+  },
+
+  discardOneCard(cardId){
+    const st = this.state;
+    const card = st.hand.find(c => c.id === cardId);
+    if (!card || !st.discardMode) return;
+    st.discardPile.push(card);
+    st.hand = st.hand.filter(c => c.id !== cardId);
+    st.discardsUsedToday++;
+    st.discardMode = false;
+    st.message = "";
+    st.log.unshift({ type: "discard", day: st.dayIndex + 1, cards: [card], used: st.discardsUsedToday });
     this.render();
   },
 
@@ -405,24 +431,6 @@ const App = {
     const p = st.dayPlaced[idx];
     st.dayPlaced.splice(idx, 1);
     st.hand.push(p.card);
-    this.render();
-  },
-
-  discardBacklog(){
-    const st = this.state;
-    const chosen = st.hand.filter(c => st.selectedBacklog.has(c.id));
-    if (chosen.length < 1){
-      st.message = "Выбери хотя бы одну циферку, чтобы спихнуть."; this.render(); return;
-    }
-    if (st.discardsUsedToday >= CONFIG.DISCARDS_PER_DAY){
-      st.message = "На сегодня соседи кончились."; this.render(); return;
-    }
-    st.discardPile.push(...chosen);
-    st.hand = st.hand.filter(c => !st.selectedBacklog.has(c.id));
-    st.selectedBacklog = new Set();
-    st.discardsUsedToday++;
-    st.message = "";
-    st.log.unshift({ type: "discard", day: st.dayIndex + 1, cards: chosen, used: st.discardsUsedToday });
     this.render();
   },
 
@@ -618,24 +626,22 @@ const App = {
 
   renderBacklog(){
     const st = this.state;
-    return `<div class="hand-row">${st.hand.map(c => {
+    const cardAction = st.discardMode ? "discard-one-card" : "arm-card";
+    return `<div class="hand-scroll"><div class="hand-row">${st.hand.map(c => {
       const armed = st.pendingPlaceCardId === c.id;
-      const checked = st.selectedBacklog.has(c.id);
-      return `<div>
-        <div class="backlog-card ${armed ? "armed" : ""}" draggable="true" data-action="arm-card" data-card-id="${c.id}">
-          <div class="card-art type-${c.type}">
-            <div class="card-hours-badge">${c.hours}ч</div>
-            ${ICONS[c.type]}
-          </div>
-          <div class="card-body">
-            <div class="card-name">${c.name}</div>
-            <div class="card-rule"></div>
-            <div class="card-numbers"><span class="base">${c.base}</span><span class="mult">+${c.mult}</span></div>
-          </div>
+      return `<div class="backlog-card ${armed ? "armed" : ""} ${st.discardMode ? "discardable" : ""}"
+          draggable="${st.discardMode ? "false" : "true"}" data-action="${cardAction}" data-card-id="${c.id}">
+        <div class="card-art type-${c.type}">
+          <div class="card-hours-badge">${c.hours}ч</div>
+          ${ICONS[c.type]}
         </div>
-        <label class="card-discard-row"><input type="checkbox" data-action="toggle-discard-select" data-card-id="${c.id}" ${checked ? "checked" : ""}> спихнуть на соседа</label>
+        <div class="card-body">
+          <div class="card-name">${c.name}</div>
+          <div class="card-rule"></div>
+          <div class="card-numbers"><span class="base">${c.base}</span><span class="mult">+${c.mult}</span></div>
+        </div>
       </div>`;
-    }).join("")}</div>`;
+    }).join("")}</div></div>`;
   },
 
   renderCalendar(){
@@ -662,7 +668,7 @@ const App = {
       const fb = st.forcedBlock;
       const rowStart = (fb.startHour - startH) + 1;
       cells += `<div class="comm-block" style="grid-row:${rowStart} / span ${fb.hours}" data-action="forced-block-click">
-        <div class="tb-main"><span class="tb-name">Общение</span><span class="tb-nums">${fb.label}</span></div>
+        за усердие батракану назначено общение: ${fb.label}
       </div>`;
     }
 
@@ -683,41 +689,32 @@ const App = {
     const threshold = CONFIG.THRESHOLDS[st.quarterIndex];
     const preview = computeDayScore(st.dayPlaced.map(p => p.card), st.itemSlots);
     const otPreview = computeOvertime(st.dayPlaced, st.itemSlots);
-    const kudaLine = st.quarterIndex >= 1 ? ` · Куда деваться: ${st.kudaDevatsya}` : "";
+    const discardLabel = `Спихнуть на соседа (${st.discardsUsedToday}/${CONFIG.DISCARDS_PER_DAY})`;
 
     return `
       <h1>Батракан</h1>
-      <div class="box">
-        <div class="row">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · ${CONFIG.WEEKDAYS[st.dayIndex]} (${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER})</div>
-        <div class="row">Прогресс: <b>${st.quarterScore} / ${threshold}</b> · Выгорание: ${st.totalBurnout} (день короче на ${st.dayShrink}ч) · Кукиши: ${st.kukishi} · Seed: ${st.seed}${kudaLine}</div>
-        <div class="row">Спихнуть на соседа: ${st.discardsUsedToday} / ${CONFIG.DISCARDS_PER_DAY} · В колоде: ${st.deck.length} · В руке: ${st.hand.length} <button data-action="show-legend">?</button></div>
-      </div>
+      <div class="header-line">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · День ${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER} · ${st.quarterScore} / ${threshold} · День: ${st.dayEffectiveHours}ч · Кукиши: ${st.kukishi}</div>
       ${this.renderItemSlots()}
-      <div class="cols">
-        <div class="col" style="max-width:260px">
-          <div class="box">
-            <h3>Рука</h3>
-            ${this.renderBacklog()}
-            <div class="row msg">${st.message || ""}</div>
-            <button data-action="discard-backlog">Спихнуть выбранные</button>
-          </div>
+      <div class="box">
+        <h3>Календарь <button data-action="show-legend">?</button></h3>
+        <div class="calendar-wrap">${this.renderCalendar()}</div>
+        <div class="formula-bar">
+          Наколупано ${preview.result} × Замечено ${fmt(preview.vis)} = ${preview.score}
+          &nbsp;·&nbsp; Переработка сейчас: ${otPreview.overtimeHours.length}ч, платно: ${otPreview.paidHours.length}ч (+${otPreview.burnout} Выгорания, +${otPreview.kukishi} кукишей)
         </div>
-        <div class="col">
-          <div class="box">
-            <h3>Календарь</h3>
-            <div class="calendar-wrap">${this.renderCalendar()}</div>
-            <div class="formula-bar">
-              Наколупано ${preview.result} × Замечено ${fmt(preview.vis)} = ${preview.score}
-              &nbsp;·&nbsp; Переработка сейчас: ${otPreview.overtimeHours.length}ч, платно: ${otPreview.paidHours.length}ч (+${otPreview.burnout} Выгорания, +${otPreview.kukishi} кукишей)
-            </div>
-            <div class="row"><button data-action="submit-day">Сдать день</button></div>
-          </div>
-        </div>
+        <div class="row"><button data-action="submit-day">Сдать день</button></div>
+      </div>
+      <div class="box">
+        <h3>Рука</h3>
+        <div class="row"><button data-action="toggle-discard-mode">${discardLabel}</button></div>
+        ${this.renderBacklog()}
+        <div class="row msg">${st.message || ""}</div>
       </div>
       <div class="box">
         <h3>Личное дело</h3>
         ${this.renderLog()}
       </div>
+      <div class="footer-line">Seed: ${st.seed} · В колоде: ${st.deck.length} · В руке: ${st.hand.length} · Выгорание: ${st.totalBurnout}${st.quarterIndex >= 1 ? " · Куда деваться: " + st.kudaDevatsya : ""}</div>
     `;
   },
 
@@ -844,16 +841,16 @@ document.addEventListener("click", function(e){
     App.startRun(input ? input.value : "");
   } else if (action === "arm-card"){
     App.armCard(el.dataset.cardId);
-  } else if (action === "toggle-discard-select"){
-    App.toggleDiscardSelect(el.dataset.cardId);
+  } else if (action === "toggle-discard-mode"){
+    App.toggleDiscardMode();
+  } else if (action === "discard-one-card"){
+    App.discardOneCard(el.dataset.cardId);
   } else if (action === "place-here"){
     App.onCellClick(Number(el.dataset.hour));
   } else if (action === "unplace-card"){
     App.unplaceCard(el.dataset.cardId);
   } else if (action === "forced-block-click"){
     App.onForcedBlockClick();
-  } else if (action === "discard-backlog"){
-    App.discardBacklog();
   } else if (action === "submit-day"){
     App.submitDay();
   } else if (action === "use-item"){
