@@ -4,88 +4,144 @@
 <meta charset="UTF-8">
 <title>Батракан</title>
 <style>
-  body{font-family:monospace;font-size:13px;margin:14px;background:#fff;color:#000;}
-  .box{border:1px solid #999;padding:8px;margin-bottom:10px;}
-  .row{margin-bottom:6px;}
-  button{font-family:monospace;margin-right:6px;padding:2px 10px;cursor:pointer;}
+  :root{
+    --фон:        #0E0906;
+    --дерево:     #6B2E0E;
+    --свет:       #E8862F;
+    --блик:       #F2A44B;
+    --бумага:     #F2EBDB;
+    --бумага-тень:#E4D8C0;
+    --линейка:    #BCAE8E;
+    --чернила:    #2A1D12;
+    --бирюза:     #2A6B72;
+    --бирюза-тьма:#1E4B52;
+    --печать:     #B03A36;
+    --субтитр-фон:#1C1A1E;
+  }
+  body{font-family:monospace;font-size:13px;margin:0;padding:14px;background:var(--фон);color:var(--бумага);}
+  .light-spot{position:fixed;top:0;left:0;right:0;height:60vh;background:radial-gradient(circle at 50% 0%, rgba(232,134,47,0.34), transparent 60%);pointer-events:none;z-index:0;}
+  .vignette{position:fixed;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle, transparent 55%, rgba(0,0,0,0.55) 100%);pointer-events:none;z-index:0;}
+  #app{position:relative;z-index:1;}
+
+  .box{
+    background:linear-gradient(160deg, var(--бумага), var(--бумага-тень));
+    border-radius:3px;
+    box-shadow:0 14px 40px rgba(0,0,0,0.75), 0 0 34px rgba(232,134,47,0.16);
+    color:var(--чернила);padding:8px;margin-bottom:10px;
+  }
+  .row{margin-bottom:6px;border-bottom:1px dashed var(--линейка);padding-bottom:6px;}
+  .row:last-child{border-bottom:none;}
+  button{font-family:monospace;margin-right:6px;padding:2px 10px;cursor:pointer;background:var(--бумага-тень);border:1px solid var(--чернила);color:var(--чернила);border-radius:2px;}
   button:disabled{cursor:default;opacity:0.5;}
-  input[type=text]{font-family:monospace;padding:2px;}
-  .log-entry{border-top:1px dashed #999;padding:6px 0;}
-  .small{font-size:11px;color:#333;}
+  input[type=text]{font-family:monospace;padding:2px;background:var(--бумага);border:1px solid var(--линейка);color:var(--чернила);}
+  .log-entry{border-top:1px dashed var(--линейка);padding:6px 0;}
+  .small{font-size:11px;color:var(--чернила);opacity:0.75;}
   .msg{font-weight:bold;}
-  .lore{font-style:italic;color:#333;}
+  .lore{font-style:italic;}
   h1,h2,h3{margin:6px 0;}
-  .header-line{font-size:15px;font-weight:bold;margin-bottom:10px;}
-  .footer-line{font-size:11px;color:#888;margin-top:16px;}
+  .header-line{font-size:15px;font-weight:bold;margin-bottom:10px;color:var(--бумага);}
+  .footer-line{font-size:11px;color:var(--линейка);margin-top:16px;}
+  .hint-line{font-size:12px;color:var(--блик);margin-top:4px;}
 
   .hand-scroll{overflow-x:auto;padding-bottom:6px;}
   .hand-row{display:flex;flex-wrap:nowrap;gap:8px;}
-  .backlog-card{flex:0 0 150px;width:150px;height:180px;box-sizing:border-box;border:1px solid #999;background:#fff;overflow:hidden;position:relative;font-size:12px;cursor:pointer;}
-  .backlog-card.armed{border:2px solid #222;}
-  .backlog-card.discardable{border:2px dashed #c00;}
+  .backlog-card{
+    flex:0 0 150px;width:150px;height:180px;box-sizing:border-box;
+    background:linear-gradient(160deg, var(--бумага), var(--бумага-тень));
+    border-radius:3px;box-shadow:0 14px 40px rgba(0,0,0,0.75), 0 0 34px rgba(232,134,47,0.16);
+    overflow:hidden;position:relative;font-size:12px;cursor:pointer;color:var(--чернила);
+  }
+  .backlog-card.armed{box-shadow:0 0 0 2px var(--чернила), 0 14px 40px rgba(0,0,0,0.75);}
+  .backlog-card.discardable{box-shadow:0 0 0 2px var(--печать), 0 14px 40px rgba(0,0,0,0.75);}
+  .backlog-card.dumpable{box-shadow:0 0 0 2px var(--бирюза-тьма), 0 14px 40px rgba(0,0,0,0.75);}
   .card-art{height:96px;position:relative;display:flex;align-items:center;justify-content:center;}
-  .card-art.type-trud{background:#FAEEDA;}
-  .card-art.type-pokazuha{background:#EEEDFE;}
-  .card-hours-badge{position:absolute;top:6px;left:6px;background:#222;color:#fff;font-size:11px;line-height:1;padding:2px 6px;}
+  .card-art.type-trud{background:color-mix(in srgb, var(--свет) 35%, var(--бумага-тень));}
+  .card-art.type-pokazuha{background:color-mix(in srgb, var(--бирюза) 35%, var(--бумага-тень));}
+  .card-hours-badge{position:absolute;top:6px;left:6px;background:var(--чернила);color:var(--бумага);font-size:11px;line-height:1;padding:2px 6px;}
   .card-body{padding:6px 8px;}
   .card-name{font-size:12px;font-weight:bold;line-height:1.15;height:2.3em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
-  .card-rule{border-top:1px solid #ddd;margin:5px 0;}
+  .card-rule{border-top:1px solid var(--линейка);margin:5px 0;}
   .card-numbers{display:flex;justify-content:space-between;align-items:baseline;}
   .card-numbers .base{font-size:20px;font-weight:bold;}
-  .card-numbers .mult{font-size:15px;color:#7C5CFC;font-weight:bold;}
+  .card-numbers .mult{font-size:15px;color:var(--бирюза-тьма);font-weight:bold;}
 
   .item-slots{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
-  .item-slot{border:1px solid #999;padding:6px;width:220px;font-size:11px;}
-  .item-slot.empty{border:1px dashed #bbb;color:#999;display:flex;align-items:center;justify-content:center;min-height:40px;}
+  .item-slot{
+    background:linear-gradient(160deg, var(--бумага), var(--бумага-тень));
+    border-radius:3px;box-shadow:0 14px 40px rgba(0,0,0,0.75), 0 0 34px rgba(232,134,47,0.16);
+    color:var(--чернила);padding:6px;width:220px;font-size:11px;
+  }
+  .item-slot.empty{background:none;box-shadow:none;border:1px dashed var(--линейка);color:var(--линейка);display:flex;align-items:center;justify-content:center;min-height:40px;}
 
   .calendar-wrap{display:block;width:100%;}
-  .calendar{display:grid;grid-template-columns:56px 1fr;grid-auto-rows:34px;border:1px solid #999;width:100%;}
-  .hour-label{grid-column:1;border-bottom:1px solid #ddd;border-right:1px solid #999;font-size:11px;padding:2px 4px;background:#f5f5f5;}
-  .hour-cell{grid-column:2;border-bottom:1px solid #ddd;font-size:10px;color:#999;padding:2px 4px;}
-  .hour-cell.normal{background:#ffffff;}
-  .hour-cell.overtime{background:#ffe4e1;}
-  .hour-cell.lunch{background:#eeeeee;color:#777;}
-  .hour-cell.blocked{background:#e2e2e2;color:#777;background-image:repeating-linear-gradient(45deg,#ddd 0,#ddd 2px,#eee 2px,#eee 6px);}
-  .task-block{grid-column:2;border:1px solid rgba(0,0,0,0.25);padding:2px 6px;font-size:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:1px;}
-  .task-block.type-trud{background:#FAEEDA;}
-  .task-block.type-pokazuha{background:#EEEDFE;}
+  .calendar{
+    display:grid;grid-template-columns:56px 1fr;grid-auto-rows:34px;
+    background:linear-gradient(160deg, var(--бумага), var(--бумага-тень));
+    border-radius:3px;box-shadow:0 14px 40px rgba(0,0,0,0.75), 0 0 34px rgba(232,134,47,0.16);
+    width:100%;color:var(--чернила);
+  }
+  .hour-label{grid-column:1;border-bottom:1px dashed var(--линейка);border-right:1px solid var(--линейка);font-size:11px;padding:2px 4px;}
+  .hour-cell{grid-column:2;border-bottom:1px dashed var(--линейка);font-size:10px;color:var(--чернила);opacity:0.65;padding:2px 4px;}
+  .hour-cell.normal{background:transparent;}
+  .hour-cell.overtime{background:color-mix(in srgb, var(--печать) 18%, transparent);}
+  .hour-cell.lunch{background:color-mix(in srgb, var(--линейка) 45%, transparent);}
+  .hour-cell.blocked{background-image:repeating-linear-gradient(45deg, color-mix(in srgb, var(--линейка) 55%, transparent) 0, color-mix(in srgb, var(--линейка) 55%, transparent) 2px, transparent 2px, transparent 6px);}
+  .task-block{grid-column:2;border:1px solid var(--чернила);padding:2px 6px;font-size:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:1px;color:var(--чернила);}
+  .task-block.type-trud{background:color-mix(in srgb, var(--свет) 40%, var(--бумага));}
+  .task-block.type-pokazuha{background:color-mix(in srgb, var(--бирюза) 40%, var(--бумага));}
   .tb-main{display:flex;justify-content:space-between;gap:6px;}
   .tb-name{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .tb-nums{flex-shrink:0;color:#333;}
-  .tb-ot{font-size:10px;color:#7C5CFC;}
-  .comm-block{grid-column:2;border:1px dashed #c00;color:#c00;padding:2px 6px;font-size:11px;overflow:hidden;background:#fff5f5;cursor:default;display:flex;align-items:center;}
+  .tb-nums{flex-shrink:0;}
+  .tb-ot{font-size:10px;color:var(--печать);}
+  .comm-block{grid-column:2;border:1px dashed var(--печать);color:var(--печать);padding:2px 6px;font-size:11px;overflow:hidden;background:color-mix(in srgb, var(--печать) 12%, var(--бумага));cursor:default;display:flex;align-items:center;}
 
-  .legend-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:100;}
-  .legend-box{background:#fff;border:1px solid #333;padding:16px;max-width:420px;font-size:13px;}
+  .legend-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:150;}
+  .legend-box{
+    background:linear-gradient(160deg, var(--бумага), var(--бумага-тень));
+    border-radius:3px;box-shadow:0 14px 40px rgba(0,0,0,0.75), 0 0 34px rgba(232,134,47,0.16);
+    padding:16px;max-width:420px;font-size:13px;color:var(--чернила);
+  }
   .legend-box h3{margin-top:0;}
 
-  .formula-bar{border:1px solid #333;padding:8px;font-size:15px;font-weight:bold;margin-top:8px;}
+  .formula-bar{border:1px dashed var(--линейка);padding:8px;font-size:15px;font-weight:bold;margin-top:8px;color:var(--чернила);}
 
   /* ---- бумажные экраны между днями ---- */
   .paper-screen{
-    background:#F4EFE2;border:1px solid #C9BFA4;color:#33301F;
+    background:linear-gradient(160deg, var(--бумага), var(--бумага-тень));
+    border-radius:3px;
+    box-shadow:0 14px 40px rgba(0,0,0,0.75), 0 0 34px rgba(232,134,47,0.16);
+    color:var(--чернила);
     width:520px;max-width:100%;margin:0 auto;padding:18px 22px;position:relative;
   }
-  .paper-screen h1, .paper-screen h2, .paper-screen h3{font-family:monospace;color:#33301F;}
+  .paper-screen h1, .paper-screen h2, .paper-screen h3{font-family:monospace;color:var(--чернила);}
   .paper-title{font-size:15px;font-weight:bold;letter-spacing:1px;margin-bottom:10px;}
-  .paper-line{border-bottom:1px dashed #C9BFA4;padding:6px 0;}
+  .paper-line{border-bottom:1px dashed var(--линейка);padding:6px 0;}
   .paper-line:last-child{border-bottom:none;}
   .paper-table{width:100%;border-collapse:collapse;margin:4px 0;}
-  .paper-table td{border-bottom:1px dashed #C9BFA4;padding:4px 2px;font-family:monospace;}
+  .paper-table td{border-bottom:1px dashed var(--линейка);padding:4px 2px;font-family:monospace;}
   .paper-table td:last-child{text-align:right;font-weight:bold;}
-  .paper-evening{font-style:italic;padding:8px 0;border-bottom:1px dashed #C9BFA4;}
-  .paper-footer{font-size:10px;color:#8a836a;padding-top:8px;}
-  .paper-screen button{font-family:monospace;background:#fff;border:1px solid #33301F;color:#33301F;}
+  .paper-footer{font-size:10px;color:var(--чернила);opacity:0.6;padding-top:8px;}
   .stamp{
     position:absolute;top:14px;right:18px;
-    border:3px solid #B03A36;color:#B03A36;
+    border:3px solid var(--печать);color:var(--печать);
     padding:4px 10px;font-weight:bold;font-size:16px;letter-spacing:1px;
     font-family:monospace;transform:rotate(-11deg);opacity:0.72;
     pointer-events:none;
   }
+
+  /* ---- субтитры (сказовый текст и реакции конторки) ---- */
+  .subtitle-wrap{text-align:center;margin-top:12px;}
+  .subtitle{
+    display:inline-block;background:var(--субтитр-фон);color:#fff;font-weight:bold;
+    text-transform:uppercase;border-radius:8px;padding:7px 14px;
+    font-family:monospace;text-align:center;max-width:480px;
+  }
+  .subtitle-toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:200;pointer-events:none;text-align:center;}
 </style>
 </head>
 <body>
+<div class="light-spot"></div>
+<div class="vignette"></div>
 <div id="app"></div>
 <script>
 (function(){
@@ -108,8 +164,10 @@ const CONFIG = {
   SHOP_SIZE: 3,
   KUDESNITSA_ACTIVE_QUARTERS: 3, // «Кудесница благоволит» держится столько кварталов, потом истает
   FINALE_THRESHOLD: 20,          // порог «Куда деваться» для финала
+  RUDE_MARKS_LIMIT: 3,           // на этой отметке Алеся вычёркивает досрочно
 
-  THRESHOLDS: [1500, 3500, 8000, 18000, 40000],
+  // Первый порог поднят с 1500 до 2200, остальные — пропорционально (×22/15).
+  THRESHOLDS: [2200, 5100, 11700, 26400, 58700],
   WEEKDAYS: ["день первый", "день второй", "день третий", "день четвёртый", "день пятый"],
 
   COMM_OPTIONS: [
@@ -117,6 +175,18 @@ const CONFIG = {
     "общение с безопасностью",
     "общение по поводу общения"
   ],
+
+  // Реплики-субтитры конторки: ключ события -> варианты, выбирается случайно по seed'у.
+  TOASTS: {
+    stayLate: ["Свет в конторке горит, батракан всё колупает.", "Вахтёрыч поглядел, да ничего не сказал."],
+    leftOnTime: ["Батракан ушёл вовремя. Это запомнят."],
+    emptyDay: ["Сегодня батракан ничего не наколупал. Бывает и так."],
+    rude: ["Хамство твоё отмечено.", "Вахтёрыч сделал вид, что не слышал.", "В личное дело подшито."],
+    bought: ["Кукиши приняты. Обещано многое."],
+    commOrder: ["За усердие батракану назначено общение."],
+    thresholdMet: ["Квартал сдан. Хозяин доволен, надо полагать."],
+    thresholdAtRisk: ["Недоимка растёт. Алеся дело полистывает."]
+  },
 
   // Колода: 40 циферок, распределение и величины — из задания, не менять формулу.
   DECK_SPEC: [
@@ -166,21 +236,21 @@ function fmt(n){ return Math.round(n * 100) / 100; }
 // Заглушки: один набор примитивных SVG-иконок по типу, заменить позже.
 const ICONS = {
   trud: `<svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="10" y="6" width="24" height="32" rx="2" stroke="#333" stroke-width="2"/>
-    <line x1="15" y1="15" x2="29" y2="15" stroke="#333" stroke-width="2"/>
-    <line x1="15" y1="22" x2="29" y2="22" stroke="#333" stroke-width="2"/>
-    <line x1="15" y1="29" x2="24" y2="29" stroke="#333" stroke-width="2"/>
+    <rect x="10" y="6" width="24" height="32" rx="2" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="15" y1="15" x2="29" y2="15" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="15" y1="22" x2="29" y2="22" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="15" y1="29" x2="24" y2="29" stroke="var(--чернила)" stroke-width="2"/>
   </svg>`,
   pokazuha: `<svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="22" cy="22" r="9" stroke="#333" stroke-width="2"/>
-    <line x1="22" y1="4" x2="22" y2="9" stroke="#333" stroke-width="2"/>
-    <line x1="22" y1="35" x2="22" y2="40" stroke="#333" stroke-width="2"/>
-    <line x1="4" y1="22" x2="9" y2="22" stroke="#333" stroke-width="2"/>
-    <line x1="35" y1="22" x2="40" y2="22" stroke="#333" stroke-width="2"/>
-    <line x1="9" y1="9" x2="12.5" y2="12.5" stroke="#333" stroke-width="2"/>
-    <line x1="31.5" y1="31.5" x2="35" y2="35" stroke="#333" stroke-width="2"/>
-    <line x1="9" y1="35" x2="12.5" y2="31.5" stroke="#333" stroke-width="2"/>
-    <line x1="31.5" y1="12.5" x2="35" y2="9" stroke="#333" stroke-width="2"/>
+    <circle cx="22" cy="22" r="9" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="22" y1="4" x2="22" y2="9" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="22" y1="35" x2="22" y2="40" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="4" y1="22" x2="9" y2="22" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="35" y1="22" x2="40" y2="22" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="9" y1="9" x2="12.5" y2="12.5" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="31.5" y1="31.5" x2="35" y2="35" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="9" y1="35" x2="12.5" y2="31.5" stroke="var(--чернила)" stroke-width="2"/>
+    <line x1="31.5" y1="12.5" x2="35" y2="9" stroke="var(--чернила)" stroke-width="2"/>
   </svg>`
 };
 
@@ -295,6 +365,11 @@ const App = {
       message: "",
       pendingPlaceCardId: null,
       discardMode: false,
+      hamstvoMenuOpen: false,
+      hamstvoDumpMode: false,
+      rudeMarks: 0,
+      toast: null,
+      toastToken: 0,
       showLegend: false,
       legendShownOnce: false
     };
@@ -320,6 +395,24 @@ const App = {
     st.commFlavorThisQuarter = CONFIG.COMM_OPTIONS[Math.floor(st.rng() * CONFIG.COMM_OPTIONS.length)];
     st.log.unshift({ type: "quarter-start", quarter: st.quarterIndex + 1, threshold: CONFIG.THRESHOLDS[st.quarterIndex] });
     st.screen = "order";
+    this.showToast("commOrder");
+  },
+
+  showToast(key){
+    const st = this.state;
+    const options = CONFIG.TOASTS[key];
+    if (!options || !options.length){ this.render(); return; }
+    const text = options[Math.floor(st.rng() * options.length)];
+    st.toastToken = (st.toastToken || 0) + 1;
+    const token = st.toastToken;
+    st.toast = { text };
+    this.render();
+    setTimeout(() => {
+      if (this.state.toast && this.state.toastToken === token){
+        this.state.toast = null;
+        this.render();
+      }
+    }, 2000);
   },
 
   acknowledgeOrder(){
@@ -335,6 +428,8 @@ const App = {
     st.message = "";
     st.pendingPlaceCardId = null;
     st.discardMode = false;
+    st.hamstvoMenuOpen = false;
+    st.hamstvoDumpMode = false;
 
     const blockInfo = computeDayBlockedHours(st.totalBurnout);
     st.dayBlockedHours = blockInfo.blocked;
@@ -416,6 +511,72 @@ const App = {
     st.message = "";
     st.log.unshift({ type: "discard", day: st.dayIndex + 1, cards: [card], used: st.discardsUsedToday });
     this.render();
+  },
+
+  /* ---- Хамство ---- */
+  toggleHamstvoMenu(){
+    const st = this.state;
+    st.hamstvoMenuOpen = !st.hamstvoMenuOpen;
+    this.render();
+  },
+
+  applyRudeConsequence(note){
+    const st = this.state;
+    st.kudaDevatsya += 3;
+    st.rudeMarks = (st.rudeMarks || 0) + 1;
+    st.log.unshift({ type: "rude", day: st.dayIndex + 1, note, marks: st.rudeMarks });
+    if (st.rudeMarks >= CONFIG.RUDE_MARKS_LIMIT){
+      st.screen = "vycherknut-marks";
+      this.showToast("rude");
+      return true;
+    }
+    this.showToast("rude");
+    return false;
+  },
+
+  hamstvoRefuseComm(){
+    const st = this.state;
+    if (!st.forcedBlock) return;
+    st.forcedBlock = null;
+    st.hamstvoMenuOpen = false;
+    this.applyRudeConsequence("отказался от общения");
+  },
+
+  hamstvoSkipDay(){
+    const st = this.state;
+    st.dayPlaced.forEach(p => st.hand.push(p.card));
+    st.dayPlaced = [];
+    st.hamstvoMenuOpen = false;
+    const ended = this.applyRudeConsequence("не сдал день");
+    if (!ended) this.advanceDay();
+  },
+
+  toggleHamstvoDumpMode(){
+    const st = this.state;
+    if (st.hamstvoDumpMode){
+      st.hamstvoDumpMode = false;
+      st.hamstvoMenuOpen = false;
+      this.render();
+      return;
+    }
+    if (st.hand.length < 1) return;
+    st.hamstvoDumpMode = true;
+    st.pendingPlaceCardId = null;
+    st.discardMode = false;
+    st.hamstvoMenuOpen = false;
+    st.message = "Выбери циферку, чтобы спихнуть начальнику.";
+    this.render();
+  },
+
+  hamstvoDumpCard(cardId){
+    const st = this.state;
+    const card = st.hand.find(c => c.id === cardId);
+    if (!card || !st.hamstvoDumpMode) return;
+    st.discardPile.push(card);
+    st.hand = st.hand.filter(c => c.id !== cardId);
+    st.hamstvoDumpMode = false;
+    st.message = "";
+    this.applyRudeConsequence("спихнул циферку начальнику: " + card.name);
   },
 
   placeCard(cardId, startHour){
@@ -510,7 +671,17 @@ const App = {
       thresholdFailed
     };
     st.screen = "day-outro";
-    this.render();
+
+    let toastKey = null;
+    if (cards.length === 0) toastKey = "emptyDay";
+    else if (otInfo.overtimeHours.length === 0) toastKey = "leftOnTime";
+    else if (st.dayPlaced.some(p => p.occupiedHours.includes(21))) toastKey = "stayLate";
+    const remainingDaysAfter = CONFIG.DAYS_PER_QUARTER - (st.dayIndex + 1);
+    if (remainingDaysAfter === 2 && st.quarterScore < CONFIG.THRESHOLDS[st.quarterIndex] / 2){
+      toastKey = "thresholdAtRisk";
+    }
+    if (toastKey) this.showToast(toastKey);
+    else this.render();
   },
 
   continueAfterDayOutro(){
@@ -560,6 +731,7 @@ const App = {
       st.finalePassedThreshold = passed;
       st.finaleEnough = st.kudaDevatsya >= CONFIG.FINALE_THRESHOLD;
       st.screen = "finale";
+      if (passed) this.showToast("thresholdMet");
       return;
     }
 
@@ -573,6 +745,7 @@ const App = {
       return { id: def.id, bought: false };
     });
     st.screen = "shop";
+    this.showToast("thresholdMet");
   },
 
   buyItem(offerIdx){
@@ -586,7 +759,7 @@ const App = {
     st.itemSlots.push({ id: def.id, quartersUsed: 0 });
     offer.bought = true;
     st.message = "";
-    this.render();
+    this.showToast("bought");
   },
 
   moveItemSlot(idx, dir){
@@ -620,8 +793,18 @@ const App = {
     else if (st.screen === "shop") html = this.renderShop();
     else if (st.screen === "gameover-early") html = this.renderGameOverEarly();
     else if (st.screen === "finale") html = this.renderFinale();
+    else if (st.screen === "vycherknut-marks") html = this.renderVycherknutMarks();
     if (st.showLegend) html += this.renderLegend();
+    if (st.toast) html += this.renderToast();
     document.getElementById("app").innerHTML = html;
+  },
+
+  renderSubtitle(text){
+    return `<div class="subtitle-wrap"><div class="subtitle">${text}</div></div>`;
+  },
+
+  renderToast(){
+    return `<div class="subtitle-toast"><div class="subtitle">${this.state.toast.text}</div></div>`;
   },
 
   renderLegend(){
@@ -647,10 +830,9 @@ const App = {
     return `
       <div class="paper-screen">
         <div class="paper-title">ПРИКАЗ №${st.quarterIndex + 1}</div>
-        <div class="paper-line">Свыше пришла воля, обжалованию не подлежит.</div>
-        <div class="paper-line">За усердие батракану назначено общение: ${st.commFlavorThisQuarter}.</div>
         <div class="paper-line"><button data-action="acknowledge-order">Принять к исполнению</button></div>
       </div>
+      ${this.renderSubtitle("Свыше пришла воля, обжалованию не подлежит. За усердие батракану назначено общение: " + st.commFlavorThisQuarter + ".")}
     `;
   },
 
@@ -658,13 +840,9 @@ const App = {
     return `
       <div class="paper-screen">
         <div class="paper-title">БАТРАКАН</div>
-        <div class="paper-line">
-          А ты и не заметил, как наступил очередной день в конторке. Впереди гора батрачки.
-          Какая же благодать — шабашить в любимой конторке на благо хозяина. Авось ещё и
-          кукишей да обещаний подкинут пуще прежнего.
-        </div>
         <div class="paper-line"><button data-action="begin-day">Батраканить</button></div>
       </div>
+      ${this.renderSubtitle("А ты и не заметил, как наступил очередной день в конторке. Впереди гора батрачки. Какая же благодать — шабашить в любимой конторке на благо хозяина. Авось ещё и кукишей да обещаний подкинут пуще прежнего.")}
     `;
   },
 
@@ -690,34 +868,24 @@ const App = {
           <tr><td>Кукиши</td><td>+${o.kukishiGained}</td></tr>
           <tr><td>Квартал</td><td>${o.quarterScore} / ${o.threshold}</td></tr>
         </table>
-        <div class="paper-evening">
-          Ты сделал это, ты своё отшабашкал.<br>
-          Циферки накалупаны, бурмалда набережена, аккуратно сконтейнированы.<br>
-          ${line3}<br>
-          Отдыхай, батракан. Скоро свидимся.
-        </div>
         <div class="paper-footer">ф. 17-Б · экз. единственный</div>
         <div class="paper-line"><button data-action="continue-day-outro">Домой</button></div>
       </div>
+      ${this.renderSubtitle("Ты сделал это, ты своё отшабашкал. Циферки накалупаны, бурмалда набережена, аккуратно сконтейнированы. " + line3 + " Отдыхай, батракан. Скоро свидимся.")}
     `;
   },
 
   renderStart(){
     const st = this.state;
     return `
-      <h1>Батракан</h1>
-      <div class="box lore">
-        В некоторой конторке, не столь отдалённой, сидел батракан и колупал циферки.
-        Приказы шли сверху, конца им было не видно. Директора конторки не видал ни один
-        батракан — только его волю. Личное дело батракана лежало у Кудесницы Алеси
-        в отделе кадров, и счёт вела она одна.
+      <div class="paper-screen">
+        <div class="paper-title">БАТРАКАН</div>
+        <div class="paper-line">Очки = Наколупано × Замечено. Пороги по кварталам: ${CONFIG.THRESHOLDS.join(", ")}.</div>
+        <div class="paper-line">Seed (число или любой текст, можно оставить пустым):<br><input type="text" id="seedInput" value="${st.seedText}"></div>
+        <div class="paper-line"><button data-action="start-run">Батраканить</button></div>
       </div>
-      <div class="box">
-        <p>Очки = Наколупано × Замечено. Пороги по кварталам: ${CONFIG.THRESHOLDS.join(", ")}.</p>
-        <div class="row">Seed (число или любой текст, можно оставить пустым):</div>
-        <div class="row"><input type="text" id="seedInput" value="${st.seedText}"></div>
-        <button data-action="start-run">Батраканить</button>
-      </div>
+      ${this.renderSubtitle("В некоторой конторке, не столь отдалённой, сидел батракан и колупал циферки. Приказы шли сверху, конца им было не видно. Директора конторки не видал ни один батракан — только его волю. Личное дело батракана лежало у Кудесницы Алеси в отделе кадров, и счёт вела она одна.")}
+      ${this.renderSubtitle("Продержись год в конторке и уйди на своих ногах. Кто не удержится — того вычеркнут, и дело с концом.")}
     `;
   },
 
@@ -752,11 +920,13 @@ const App = {
 
   renderBacklog(){
     const st = this.state;
-    const cardAction = st.discardMode ? "discard-one-card" : "arm-card";
+    const cardAction = st.hamstvoDumpMode ? "dump-to-boss-card" : (st.discardMode ? "discard-one-card" : "arm-card");
+    const noDrag = st.hamstvoDumpMode || st.discardMode;
     return `<div class="hand-scroll"><div class="hand-row">${st.hand.map(c => {
       const armed = st.pendingPlaceCardId === c.id;
-      return `<div class="backlog-card ${armed ? "armed" : ""} ${st.discardMode ? "discardable" : ""}"
-          draggable="${st.discardMode ? "false" : "true"}" data-action="${cardAction}" data-card-id="${c.id}">
+      const modeClass = st.hamstvoDumpMode ? "dumpable" : (st.discardMode ? "discardable" : "");
+      return `<div class="backlog-card ${armed ? "armed" : ""} ${modeClass}"
+          draggable="${noDrag ? "false" : "true"}" data-action="${cardAction}" data-card-id="${c.id}">
         <div class="card-art type-${c.type}">
           <div class="card-hours-badge">${c.hours}ч</div>
           ${ICONS[c.type]}
@@ -810,16 +980,30 @@ const App = {
     return `<div class="calendar">${cells}</div>`;
   },
 
+  renderHamstvoMenu(){
+    const st = this.state;
+    const opts = [];
+    if (st.forcedBlock) opts.push(`<button data-action="hamstvo-refuse-comm">Отказаться от общения (−2ч приказа)</button>`);
+    opts.push(`<button data-action="hamstvo-skip-day">Не сдать день</button>`);
+    if (st.hand.length >= 1) opts.push(`<button data-action="toggle-hamstvo-dump-mode">${st.hamstvoDumpMode ? "Отменить спихивание начальнику" : "Спихнуть циферку начальнику"}</button>`);
+    return `<div class="row">${opts.join("")}</div>`;
+  },
+
   renderDay(){
     const st = this.state;
     const threshold = CONFIG.THRESHOLDS[st.quarterIndex];
     const preview = computeDayScore(st.dayPlaced.map(p => p.card), st.itemSlots);
     const otPreview = computeOvertime(st.dayPlaced, st.itemSlots);
     const discardLabel = `Спихнуть на соседа (${st.discardsUsedToday}/${CONFIG.DISCARDS_PER_DAY})`;
+    const remaining = Math.max(0, threshold - st.quarterScore);
+    const remainingDays = CONFIG.DAYS_PER_QUARTER - st.dayIndex;
+    const neededToday = remainingDays > 0 ? Math.max(0, Math.ceil(remaining / remainingDays)) : remaining;
 
     return `
       <h1>Батракан</h1>
-      <div class="header-line">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · День ${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER} · ${st.quarterScore} / ${threshold} · День: ${st.dayEffectiveHours}ч · Кукиши: ${st.kukishi}</div>
+      <div class="header-line">Квартал ${st.quarterIndex + 1}/${CONFIG.THRESHOLDS.length} · День ${st.dayIndex + 1}/${CONFIG.DAYS_PER_QUARTER} · ${st.quarterScore} / ${threshold} ·
+        До сдачи квартала: ${remaining} · Куда деваться: ${st.kudaDevatsya} · Отметок: ${st.rudeMarks}/${CONFIG.RUDE_MARKS_LIMIT} ·
+        День: ${st.dayEffectiveHours}ч · Кукиши: ${st.kukishi}</div>
       ${this.renderItemSlots()}
       <div class="box">
         <h3>Календарь <button data-action="show-legend">?</button></h3>
@@ -828,11 +1012,16 @@ const App = {
           Наколупано ${preview.result} × Замечено ${fmt(preview.vis)} = ${preview.score}
           &nbsp;·&nbsp; Переработка сейчас: ${otPreview.overtimeHours.length}ч, платно: ${otPreview.paidHours.length}ч (+${otPreview.burnout} Выгорания, +${otPreview.kukishi} кукишей)
         </div>
+        <div class="hint-line">Чтобы не отстать, сегодня надо около ${neededToday}</div>
         <div class="row"><button data-action="submit-day">Сдать день</button></div>
       </div>
       <div class="box">
         <h3>Рука</h3>
-        <div class="row"><button data-action="toggle-discard-mode">${discardLabel}</button></div>
+        <div class="row">
+          <button data-action="toggle-discard-mode">${discardLabel}</button>
+          <button data-action="toggle-hamstvo-menu">Нахамить</button>
+        </div>
+        ${st.hamstvoMenuOpen ? this.renderHamstvoMenu() : ""}
         ${this.renderBacklog()}
         <div class="row msg">${st.message || ""}</div>
       </div>
@@ -840,7 +1029,7 @@ const App = {
         <h3>Личное дело</h3>
         ${this.renderLog()}
       </div>
-      <div class="footer-line">Seed: ${st.seed} · В колоде: ${st.deck.length} · В руке: ${st.hand.length} · Выгорание: ${st.totalBurnout}${st.quarterIndex >= 1 ? " · Куда деваться: " + st.kudaDevatsya : ""}</div>
+      <div class="footer-line">Seed: ${st.seed} · В колоде: ${st.deck.length} · В руке: ${st.hand.length} · Выгорание: ${st.totalBurnout}</div>
     `;
   },
 
@@ -870,7 +1059,7 @@ const App = {
               : st2.name + ": Наколупано " + st2.before.result + "→" + st2.after.result + ", Замечено " + fmt(st2.before.vis) + "→" + fmt(st2.after.vis)
             ).join("<br>")
           : "нет";
-        const kudaTxt = entry.quarter >= 2 ? ` · Куда деваться +${entry.emptyHours} (итого ${st.kudaDevatsya})` : "";
+        const kudaTxt = ` · Куда деваться +${entry.emptyHours} (итого ${st.kudaDevatsya})`;
         return `<div class="log-entry">
           <b>Квартал ${entry.quarter}, ${CONFIG.WEEKDAYS[entry.day - 1]}: день сдан</b><br>
           Циферки: ${cardsList}<br>
@@ -888,6 +1077,9 @@ const App = {
       if (entry.type === "quarter-end"){
         return `<div class="log-entry"><b>Квартал ${entry.quarter} завершён: ${entry.score} / ${entry.threshold} — ${entry.passed ? "порог взят" : "порог НЕ взят"}</b></div>`;
       }
+      if (entry.type === "rude"){
+        return `<div class="log-entry">Хамство (отметка ${entry.marks}/${CONFIG.RUDE_MARKS_LIMIT}): ${entry.note}.</div>`;
+      }
       return "";
     }).join("");
   },
@@ -897,7 +1089,7 @@ const App = {
     const offers = st.shopOffers.map((offer, idx) => {
       const def = itemDef(offer.id);
       const canBuy = !offer.bought && st.kukishi >= def.price && st.itemSlots.length < CONFIG.MAX_ITEM_SLOTS;
-      return `<div class="backlog-card" style="width:260px;height:auto;display:inline-block;vertical-align:top;margin-right:8px;margin-bottom:8px;background:#fff;">
+      return `<div class="backlog-card" style="width:260px;height:auto;display:inline-block;vertical-align:top;margin-right:8px;margin-bottom:8px;">
         <b>${def.name}</b> (цена: ${def.price})<br>
         <span class="small">${def.desc}</span><br>
         <button data-action="buy-item" data-offer-idx="${idx}" ${canBuy ? "" : "disabled"}>${offer.bought ? "Куплено" : "Купить"}</button>
@@ -923,10 +1115,6 @@ const App = {
       <div class="paper-screen">
         ${this.renderStamp("ВЫЧЕРКНУТ")}
         <div class="paper-title">БАТРАКАН</div>
-        <div class="paper-evening">
-          Порог не взят. Шабашка кончилась, не дотянув до положенного.
-          Контора этого не заметила — циферки не различают уставших.
-        </div>
         <table class="paper-table">
           <tr><td>Квартал</td><td>${st.quarterIndex + 1}</td></tr>
           <tr><td>Счёт</td><td>${st.quarterScore} / ${CONFIG.THRESHOLDS[st.quarterIndex]}</td></tr>
@@ -938,6 +1126,7 @@ const App = {
         <div class="paper-line"><button data-action="restart">Играть заново</button></div>
         <div class="paper-line"><b>Личное дело</b>${this.renderLog()}</div>
       </div>
+      ${this.renderSubtitle("Порог не взят. Шабашка кончилась, не дотянув до положенного. Контора этого не заметила — циферки не различают уставших.")}
     `;
   },
 
@@ -950,12 +1139,6 @@ const App = {
       <div class="paper-screen">
         ${this.renderStamp("ВЫЧЕРКНУТ")}
         <div class="paper-title">БАТРАКАН</div>
-        <div class="paper-evening">
-          Кудесница Алеся достаёт личное дело батракана, глядит в него долго и спрашивает ласково:<br>
-          «Покуда же ты денешься без шабашки?»<br><br>
-          ${middle}<br><br>
-          Наутро на его месте сидит другой батракан — да отзывается на то же самое имя.
-        </div>
         <table class="paper-table">
           <tr><td>Квартал 5</td><td>${st.quarterScore} / ${CONFIG.THRESHOLDS[4]} (${st.finalePassedThreshold ? "порог взят" : "порог не взят"})</td></tr>
           <tr><td>Выгорание</td><td>${st.totalBurnout}</td></tr>
@@ -966,6 +1149,29 @@ const App = {
         <div class="paper-line"><button data-action="restart">Играть заново</button></div>
         <div class="paper-line"><b>Личное дело</b>${this.renderLog()}</div>
       </div>
+      ${this.renderSubtitle("Кудесница Алеся достаёт личное дело батракана, глядит в него долго и спрашивает ласково: «Покуда же ты денешься без шабашки?» " + middle + " Наутро на его месте сидит другой батракан — да отзывается на то же самое имя.")}
+    `;
+  },
+
+  renderVycherknutMarks(){
+    const st = this.state;
+    return `
+      <div class="paper-screen">
+        ${this.renderStamp("ВЫЧЕРКНУТ")}
+        <div class="paper-title">БАТРАКАН</div>
+        <table class="paper-table">
+          <tr><td>Квартал</td><td>${st.quarterIndex + 1}</td></tr>
+          <tr><td>Отметок</td><td>${st.rudeMarks}/${CONFIG.RUDE_MARKS_LIMIT}</td></tr>
+          <tr><td>Счёт квартала</td><td>${st.quarterScore} / ${CONFIG.THRESHOLDS[st.quarterIndex]}</td></tr>
+          <tr><td>Выгорание</td><td>${st.totalBurnout}</td></tr>
+          <tr><td>Кукиши</td><td>${st.kukishi}</td></tr>
+          <tr><td>Куда деваться</td><td>${st.kudaDevatsya}</td></tr>
+          <tr><td>Seed</td><td>${st.seed}</td></tr>
+        </table>
+        <div class="paper-line"><button data-action="restart">Играть заново</button></div>
+        <div class="paper-line"><b>Личное дело</b>${this.renderLog()}</div>
+      </div>
+      ${this.renderSubtitle("Ну Алеся имя и вычеркнула, дело прикрыла, да и батракан сгинул, будто не бывало. А на утро на его месте другой батракан сидит, да на то же имя откликается.")}
     `;
   }
 };
@@ -990,6 +1196,16 @@ document.addEventListener("click", function(e){
     App.toggleDiscardMode();
   } else if (action === "discard-one-card"){
     App.discardOneCard(el.dataset.cardId);
+  } else if (action === "toggle-hamstvo-menu"){
+    App.toggleHamstvoMenu();
+  } else if (action === "hamstvo-refuse-comm"){
+    App.hamstvoRefuseComm();
+  } else if (action === "hamstvo-skip-day"){
+    App.hamstvoSkipDay();
+  } else if (action === "toggle-hamstvo-dump-mode"){
+    App.toggleHamstvoDumpMode();
+  } else if (action === "dump-to-boss-card"){
+    App.hamstvoDumpCard(el.dataset.cardId);
   } else if (action === "place-here"){
     App.onCellClick(Number(el.dataset.hour));
   } else if (action === "unplace-card"){
