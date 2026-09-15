@@ -1,0 +1,9 @@
+# Local agent/skill tooling — not part of this project
+.claude/
+.agents/
+skills-lock.json
+
+# Common local junk
+node_modules/
+.env
+.DS_Store
