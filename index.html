@@ -165,6 +165,15 @@ const CONFIG = {
   KUDESNITSA_ACTIVE_QUARTERS: 3, // «Кудесница благоволит» держится столько кварталов, потом истает
   FINALE_THRESHOLD: 20,          // порог «Куда деваться» для финала
   RUDE_MARKS_LIMIT: 3,           // на этой отметке Алеся вычёркивает досрочно
+  FORCE_MAJEURE_HOURS: [11, 12, 14, 15], // окно 11:00-16:00, обед сам себя исключает
+
+  // Микрофорс-мажоры: раз в день, случайно, в занятый час из FORCE_MAJEURE_HOURS.
+  FORCE_MAJEURE_EVENTS: [
+    { key: "neighbor", label: "Сосед просит подсобить", hours: 1 },
+    { key: "boss",     label: "Начальник зовёт к себе",  hours: 2 },
+    { key: "jam",      label: "Бумага в машинке замялась", hours: 1 },
+    { key: "foreign",  label: "Принесли чужую стопку на сверку", hours: 1 }
+  ],
 
   // Первый порог поднят с 1500 до 2200, остальные — пропорционально (×22/15).
   THRESHOLDS: [2200, 5100, 11700, 26400, 58700],
@@ -399,10 +408,14 @@ const App = {
   },
 
   showToast(key){
-    const st = this.state;
     const options = CONFIG.TOASTS[key];
     if (!options || !options.length){ this.render(); return; }
-    const text = options[Math.floor(st.rng() * options.length)];
+    const text = options[Math.floor(this.state.rng() * options.length)];
+    this.showExactToast(text);
+  },
+
+  showExactToast(text){
+    const st = this.state;
     st.toastToken = (st.toastToken || 0) + 1;
     const token = st.toastToken;
     st.toast = { text };
@@ -520,18 +533,15 @@ const App = {
     this.render();
   },
 
-  applyRudeConsequence(note){
+  applyRudeConsequence(note, toastOverride){
     const st = this.state;
     st.kudaDevatsya += 3;
     st.rudeMarks = (st.rudeMarks || 0) + 1;
     st.log.unshift({ type: "rude", day: st.dayIndex + 1, note, marks: st.rudeMarks });
-    if (st.rudeMarks >= CONFIG.RUDE_MARKS_LIMIT){
-      st.screen = "vycherknut-marks";
-      this.showToast("rude");
-      return true;
-    }
-    this.showToast("rude");
-    return false;
+    const ended = st.rudeMarks >= CONFIG.RUDE_MARKS_LIMIT;
+    if (ended) st.screen = "vycherknut-marks";
+    if (toastOverride) this.showExactToast(toastOverride); else this.showToast("rude");
+    return ended;
   },
 
   hamstvoRefuseComm(){
@@ -633,7 +643,77 @@ const App = {
     this.render();
   },
 
+  findForceMajeureCandidates(){
+    const st = this.state;
+    const eligible = new Set(CONFIG.FORCE_MAJEURE_HOURS);
+    const pairs = [];
+    st.dayPlaced.forEach(p => {
+      p.occupiedHours.forEach(h => {
+        if (eligible.has(h)) pairs.push({ hour: h, card: p.card });
+      });
+    });
+    return pairs;
+  },
+
   submitDay(){
+    const st = this.state;
+    const candidates = this.findForceMajeureCandidates();
+    if (candidates.length > 0){
+      const hourPick = candidates[Math.floor(st.rng() * candidates.length)];
+      const events = CONFIG.FORCE_MAJEURE_EVENTS;
+      const eventPick = events[Math.floor(st.rng() * events.length)];
+      st.pendingForceMajeure = {
+        hour: hourPick.hour, cardId: hourPick.card.id,
+        label: eventPick.label, hoursEaten: eventPick.hours
+      };
+      st.screen = "force-majeure";
+      this.render();
+      return;
+    }
+    this.finalizeDay();
+  },
+
+  forceMajeureHelp(){
+    const st = this.state;
+    const fm = st.pendingForceMajeure;
+    if (!fm) return;
+    const affected = st.dayPlaced.find(p => p.card.id === fm.cardId);
+    const boundary = affected ? affected.startHour : fm.hour;
+    const shift = fm.hoursEaten;
+    const burned = [];
+    const shifted = [];
+    st.dayPlaced.forEach(p => {
+      if (p.startHour < boundary){ shifted.push(p); return; }
+      const newStart = p.startHour + shift;
+      const newOcc = [];
+      for (let h = newStart; h < newStart + p.card.hours; h++) newOcc.push(h);
+      const fits = (newStart + p.card.hours - 1) < CONFIG.DAY_END_HOUR && !newOcc.includes(CONFIG.LUNCH_HOUR);
+      if (fits) shifted.push({ card: p.card, startHour: newStart, occupiedHours: newOcc });
+      else burned.push(p.card);
+    });
+    st.dayPlaced = shifted;
+    st.log.unshift({
+      type: "force-majeure", day: st.dayIndex + 1, label: fm.label, choice: "help",
+      hoursEaten: shift, burned: burned.map(c => c.name)
+    });
+    st.pendingForceMajeure = null;
+    this.finalizeDay(true);
+    this.showExactToast("Батракан подсобил. Кто ж ещё.");
+  },
+
+  forceMajeureRude(){
+    const st = this.state;
+    const fm = st.pendingForceMajeure;
+    if (!fm) return;
+    st.log.unshift({ type: "force-majeure", day: st.dayIndex + 1, label: fm.label, choice: "rude", hoursEaten: 0, burned: [] });
+    // pendingForceMajeure остаётся заполненным пока экран всё ещё "force-majeure" —
+    // applyRudeConsequence сразу рендерит тост, и обнулять его раньше нельзя (упадёт renderForceMajeure).
+    const ended = this.applyRudeConsequence("нахамил из-за форс-мажора: " + fm.label, "Хамство твоё отмечено.");
+    st.pendingForceMajeure = null;
+    if (!ended) this.finalizeDay(true);
+  },
+
+  finalizeDay(skipAutoToast){
     const st = this.state;
     const cards = st.dayPlaced.map(p => p.card);
     const scoreInfo = computeDayScore(cards, st.itemSlots);
@@ -672,6 +752,7 @@ const App = {
     };
     st.screen = "day-outro";
 
+    if (skipAutoToast){ this.render(); return; }
     let toastKey = null;
     if (cards.length === 0) toastKey = "emptyDay";
     else if (otInfo.overtimeHours.length === 0) toastKey = "leftOnTime";
@@ -790,6 +871,7 @@ const App = {
     else if (st.screen === "day-intro") html = this.renderDayIntro();
     else if (st.screen === "day") html = this.renderDay();
     else if (st.screen === "day-outro") html = this.renderDayOutro();
+    else if (st.screen === "force-majeure") html = this.renderForceMajeure();
     else if (st.screen === "shop") html = this.renderShop();
     else if (st.screen === "gameover-early") html = this.renderGameOverEarly();
     else if (st.screen === "finale") html = this.renderFinale();
@@ -872,6 +954,25 @@ const App = {
         <div class="paper-line"><button data-action="continue-day-outro">Домой</button></div>
       </div>
       ${this.renderSubtitle("Ты сделал это, ты своё отшабашкал. Циферки накалупаны, бурмалда набережена, аккуратно сконтейнированы. " + line3 + " Отдыхай, батракан. Скоро свидимся.")}
+    `;
+  },
+
+  renderForceMajeure(){
+    const fm = this.state.pendingForceMajeure;
+    return `
+      <div class="paper-screen">
+        <div class="paper-title">БАТРАКАН</div>
+        <table class="paper-table">
+          <tr><td>Что стряслось</td><td>${fm.label}</td></tr>
+          <tr><td>Час</td><td>${fm.hour}:00</td></tr>
+          <tr><td>Съедает</td><td>${fm.hoursEaten}ч</td></tr>
+        </table>
+        <div class="paper-line">
+          <button data-action="force-majeure-help">Подсобить</button>
+          <button data-action="force-majeure-rude">Нахамить</button>
+        </div>
+      </div>
+      ${this.renderSubtitle(fm.label + ".")}
     `;
   },
 
@@ -1080,6 +1181,12 @@ const App = {
       if (entry.type === "rude"){
         return `<div class="log-entry">Хамство (отметка ${entry.marks}/${CONFIG.RUDE_MARKS_LIMIT}): ${entry.note}.</div>`;
       }
+      if (entry.type === "force-majeure"){
+        const choiceTxt = entry.choice === "help"
+          ? "подсобил, сдвиг +" + entry.hoursEaten + "ч" + (entry.burned.length ? ", сгорело: " + entry.burned.join(", ") : "")
+          : "нахамил";
+        return `<div class="log-entry">Форс-мажор «${entry.label}»: ${choiceTxt}.</div>`;
+      }
       return "";
     }).join("");
   },
@@ -1206,6 +1313,10 @@ document.addEventListener("click", function(e){
     App.toggleHamstvoDumpMode();
   } else if (action === "dump-to-boss-card"){
     App.hamstvoDumpCard(el.dataset.cardId);
+  } else if (action === "force-majeure-help"){
+    App.forceMajeureHelp();
+  } else if (action === "force-majeure-rude"){
+    App.forceMajeureRude();
   } else if (action === "place-here"){
     App.onCellClick(Number(el.dataset.hour));
   } else if (action === "unplace-card"){
