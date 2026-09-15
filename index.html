@@ -60,6 +60,29 @@
   .legend-box h3{margin-top:0;}
 
   .formula-bar{border:1px solid #333;padding:8px;font-size:15px;font-weight:bold;margin-top:8px;}
+
+  /* ---- бумажные экраны между днями ---- */
+  .paper-screen{
+    background:#F4EFE2;border:1px solid #C9BFA4;color:#33301F;
+    width:520px;max-width:100%;margin:0 auto;padding:18px 22px;position:relative;
+  }
+  .paper-screen h1, .paper-screen h2, .paper-screen h3{font-family:monospace;color:#33301F;}
+  .paper-title{font-size:15px;font-weight:bold;letter-spacing:1px;margin-bottom:10px;}
+  .paper-line{border-bottom:1px dashed #C9BFA4;padding:6px 0;}
+  .paper-line:last-child{border-bottom:none;}
+  .paper-table{width:100%;border-collapse:collapse;margin:4px 0;}
+  .paper-table td{border-bottom:1px dashed #C9BFA4;padding:4px 2px;font-family:monospace;}
+  .paper-table td:last-child{text-align:right;font-weight:bold;}
+  .paper-evening{font-style:italic;padding:8px 0;border-bottom:1px dashed #C9BFA4;}
+  .paper-footer{font-size:10px;color:#8a836a;padding-top:8px;}
+  .paper-screen button{font-family:monospace;background:#fff;border:1px solid #33301F;color:#33301F;}
+  .stamp{
+    position:absolute;top:14px;right:18px;
+    border:3px solid #B03A36;color:#B03A36;
+    padding:4px 10px;font-weight:bold;font-size:16px;letter-spacing:1px;
+    font-family:monospace;transform:rotate(-11deg);opacity:0.72;
+    pointer-events:none;
+  }
 </style>
 </head>
 <body>
@@ -296,7 +319,12 @@ const App = {
 
     st.commFlavorThisQuarter = CONFIG.COMM_OPTIONS[Math.floor(st.rng() * CONFIG.COMM_OPTIONS.length)];
     st.log.unshift({ type: "quarter-start", quarter: st.quarterIndex + 1, threshold: CONFIG.THRESHOLDS[st.quarterIndex] });
+    st.screen = "order";
+  },
+
+  acknowledgeOrder(){
     this.newDay();
+    this.render();
   },
 
   newDay(){
@@ -468,7 +496,19 @@ const App = {
 
     const isLastDayOfQuarter = st.dayIndex === CONFIG.DAYS_PER_QUARTER - 1;
     const thresholdFailed = isLastDayOfQuarter && st.quarterScore < CONFIG.THRESHOLDS[st.quarterIndex];
-    st.dayOutro = { overtimeHours: otInfo.overtimeHours.length, thresholdFailed };
+    st.dayOutro = {
+      dayNumber: st.dayIndex + 1,
+      weekday: CONFIG.WEEKDAYS[st.dayIndex],
+      result: scoreInfo.result,
+      vis: scoreInfo.vis,
+      score: scoreInfo.score,
+      overtimeHours: otInfo.overtimeHours.length,
+      burnoutGained: otInfo.burnout,
+      kukishiGained: otInfo.kukishi,
+      quarterScore: st.quarterScore,
+      threshold: CONFIG.THRESHOLDS[st.quarterIndex],
+      thresholdFailed
+    };
     st.screen = "day-outro";
     this.render();
   },
@@ -573,6 +613,7 @@ const App = {
     const st = this.state;
     let html = "";
     if (st.screen === "start") html = this.renderStart();
+    else if (st.screen === "order") html = this.renderOrder();
     else if (st.screen === "day-intro") html = this.renderDayIntro();
     else if (st.screen === "day") html = this.renderDay();
     else if (st.screen === "day-outro") html = this.renderDayOutro();
@@ -597,35 +638,67 @@ const App = {
     </div>`;
   },
 
+  renderStamp(label){
+    return `<div class="stamp">${label}</div>`;
+  },
+
+  renderOrder(){
+    const st = this.state;
+    return `
+      <div class="paper-screen">
+        <div class="paper-title">ПРИКАЗ №${st.quarterIndex + 1}</div>
+        <div class="paper-line">Свыше пришла воля, обжалованию не подлежит.</div>
+        <div class="paper-line">За усердие батракану назначено общение: ${st.commFlavorThisQuarter}.</div>
+        <div class="paper-line"><button data-action="acknowledge-order">Принять к исполнению</button></div>
+      </div>
+    `;
+  },
+
   renderDayIntro(){
     return `
-      <h1>Батракан</h1>
-      <div class="box lore">
-        А ты и не заметил, как наступил очередной день в конторке. Впереди гора батрачки.
-        Какая же благодать — шабашить в любимой конторке на благо хозяина. Авось ещё и
-        кукишей да обещаний подкинут пуще прежнего.
+      <div class="paper-screen">
+        <div class="paper-title">БАТРАКАН</div>
+        <div class="paper-line">
+          А ты и не заметил, как наступил очередной день в конторке. Впереди гора батрачки.
+          Какая же благодать — шабашить в любимой конторке на благо хозяина. Авось ещё и
+          кукишей да обещаний подкинут пуще прежнего.
+        </div>
+        <div class="paper-line"><button data-action="begin-day">Батраканить</button></div>
       </div>
-      <div class="row"><button data-action="begin-day">Батраканить</button></div>
     `;
   },
 
   renderDayOutro(){
     const o = this.state.dayOutro;
-    let line3;
-    if (o.thresholdFailed) line3 = "Ты устал, оно и понятно.";
-    else if (o.overtimeHours === 0) line3 = "Вахтёрыч на выходе кивнул, дивясь.";
-    else if (o.overtimeHours <= 2) line3 = "Вахтёрыч на выходе устало кивнул, он тоже утомился бдеть.";
-    else line3 = "Вахтёрыч на выходе уже и не глядит.";
+    let line3, stampLabel;
+    if (o.thresholdFailed){ line3 = "Ты устал, оно и понятно."; stampLabel = "НЕДОИМКА"; }
+    else if (o.overtimeHours >= 3){ line3 = "Вахтёрыч на выходе уже и не глядит."; stampLabel = "СВЕРХУРОЧНО"; }
+    else if (o.overtimeHours >= 1){ line3 = "Вахтёрыч на выходе устало кивнул, он тоже утомился бдеть."; stampLabel = "СДАНО"; }
+    else { line3 = "Вахтёрыч на выходе кивнул, дивясь."; stampLabel = "СДАНО"; }
 
     return `
-      <h1>Батракан</h1>
-      <div class="box lore">
-        Ты сделал это, ты своё отшабашкал.<br>
-        Циферки накалупаны, бурмалда набережена, аккуратно сконтейнированы.<br>
-        ${line3}<br>
-        Отдыхай, батракан. Скоро свидимся.
+      <div class="paper-screen">
+        ${this.renderStamp(stampLabel)}
+        <div class="paper-title" style="padding-right:110px">КОНТОРКА · ОТДЕЛ КВАДРОВ / СВОДКА ЗА ДЕНЬ</div>
+        <table class="paper-table">
+          <tr><td>День</td><td>${o.dayNumber}/${CONFIG.DAYS_PER_QUARTER} (${o.weekday})</td></tr>
+          <tr><td>Наколупано</td><td>${o.result}</td></tr>
+          <tr><td>Замечено</td><td>+${fmt(o.vis)}</td></tr>
+          <tr><td>Итог дня</td><td>${o.score}</td></tr>
+          <tr><td>Переработка</td><td>${o.overtimeHours}ч</td></tr>
+          <tr><td>Выгорание</td><td>+${o.burnoutGained}</td></tr>
+          <tr><td>Кукиши</td><td>+${o.kukishiGained}</td></tr>
+          <tr><td>Квартал</td><td>${o.quarterScore} / ${o.threshold}</td></tr>
+        </table>
+        <div class="paper-evening">
+          Ты сделал это, ты своё отшабашкал.<br>
+          Циферки накалупаны, бурмалда набережена, аккуратно сконтейнированы.<br>
+          ${line3}<br>
+          Отдыхай, батракан. Скоро свидимся.
+        </div>
+        <div class="paper-footer">ф. 17-Б · экз. единственный</div>
+        <div class="paper-line"><button data-action="continue-day-outro">Домой</button></div>
       </div>
-      <div class="row"><button data-action="continue-day-outro">Дальше</button></div>
     `;
   },
 
@@ -824,7 +897,7 @@ const App = {
     const offers = st.shopOffers.map((offer, idx) => {
       const def = itemDef(offer.id);
       const canBuy = !offer.bought && st.kukishi >= def.price && st.itemSlots.length < CONFIG.MAX_ITEM_SLOTS;
-      return `<div class="backlog-card" style="width:260px;display:inline-block;vertical-align:top;margin-right:8px;">
+      return `<div class="backlog-card" style="width:260px;height:auto;display:inline-block;vertical-align:top;margin-right:8px;margin-bottom:8px;background:#fff;">
         <b>${def.name}</b> (цена: ${def.price})<br>
         <span class="small">${def.desc}</span><br>
         <button data-action="buy-item" data-offer-idx="${idx}" ${canBuy ? "" : "disabled"}>${offer.bought ? "Куплено" : "Купить"}</button>
@@ -832,32 +905,39 @@ const App = {
     }).join("");
 
     return `
-      <h1>Конторка</h1>
-      <div class="box">
-        <div class="row">Кукиши: ${st.kukishi} · Слоты: ${st.itemSlots.length} / ${CONFIG.MAX_ITEM_SLOTS} <button data-action="show-legend">?</button></div>
-        <div class="row msg">${st.message || ""}</div>
+      <div class="paper-screen">
+        <div class="paper-title">КОНТОРКА</div>
+        <div class="paper-line">Кукиши: ${st.kukishi} · Слоты: ${st.itemSlots.length} / ${CONFIG.MAX_ITEM_SLOTS} <button data-action="show-legend">?</button></div>
+        <div class="paper-line msg">${st.message || ""}</div>
+        <div class="paper-line"><b>Предложения</b><br>${offers}</div>
+        <div class="paper-line">${this.renderItemSlots()}</div>
+        <div class="paper-line"><button data-action="continue-shop">Дальше (квартал ${st.quarterIndex + 2})</button></div>
+        <div class="paper-line"><b>Личное дело</b>${this.renderLog()}</div>
       </div>
-      <div class="box"><h3>Предложения</h3>${offers}</div>
-      ${this.renderItemSlots()}
-      <div class="box"><button data-action="continue-shop">Дальше (квартал ${st.quarterIndex + 2})</button></div>
-      <div class="box"><h3>Личное дело</h3>${this.renderLog()}</div>
     `;
   },
 
   renderGameOverEarly(){
     const st = this.state;
     return `
-      <h1>Батракан</h1>
-      <div class="box lore">
-        Порог не взят. Шабашка кончилась, не дотянув до положенного.
-        Контора этого не заметила — циферки не различают уставших.
+      <div class="paper-screen">
+        ${this.renderStamp("ВЫЧЕРКНУТ")}
+        <div class="paper-title">БАТРАКАН</div>
+        <div class="paper-evening">
+          Порог не взят. Шабашка кончилась, не дотянув до положенного.
+          Контора этого не заметила — циферки не различают уставших.
+        </div>
+        <table class="paper-table">
+          <tr><td>Квартал</td><td>${st.quarterIndex + 1}</td></tr>
+          <tr><td>Счёт</td><td>${st.quarterScore} / ${CONFIG.THRESHOLDS[st.quarterIndex]}</td></tr>
+          <tr><td>Выгорание</td><td>${st.totalBurnout}</td></tr>
+          <tr><td>Кукиши</td><td>${st.kukishi}</td></tr>
+          <tr><td>Куда деваться</td><td>${st.kudaDevatsya}</td></tr>
+          <tr><td>Seed</td><td>${st.seed}</td></tr>
+        </table>
+        <div class="paper-line"><button data-action="restart">Играть заново</button></div>
+        <div class="paper-line"><b>Личное дело</b>${this.renderLog()}</div>
       </div>
-      <div class="box">
-        <div class="row">Квартал: ${st.quarterIndex + 1} · Счёт: ${st.quarterScore} / ${CONFIG.THRESHOLDS[st.quarterIndex]}</div>
-        <div class="row">Выгорание: ${st.totalBurnout} · Кукиши: ${st.kukishi} · Куда деваться: ${st.kudaDevatsya} · Seed: ${st.seed}</div>
-        <button data-action="restart">Играть заново</button>
-      </div>
-      <div class="box"><h3>Личное дело</h3>${this.renderLog()}</div>
     `;
   },
 
@@ -867,19 +947,25 @@ const App = {
       ? "У батракана находится, что ответить. Он поднимается и уходит из конторки, не оборачиваясь."
       : "Батракан молчит. Сказать-то и нечего.";
     return `
-      <h1>Батракан</h1>
-      <div class="box lore">
-        Кудесница Алеся достаёт личное дело батракана, глядит в него долго и спрашивает ласково:<br>
-        «Покуда же ты денешься без шабашки?»<br><br>
-        ${middle}<br><br>
-        Наутро на его месте сидит другой батракан — да отзывается на то же самое имя.
+      <div class="paper-screen">
+        ${this.renderStamp("ВЫЧЕРКНУТ")}
+        <div class="paper-title">БАТРАКАН</div>
+        <div class="paper-evening">
+          Кудесница Алеся достаёт личное дело батракана, глядит в него долго и спрашивает ласково:<br>
+          «Покуда же ты денешься без шабашки?»<br><br>
+          ${middle}<br><br>
+          Наутро на его месте сидит другой батракан — да отзывается на то же самое имя.
+        </div>
+        <table class="paper-table">
+          <tr><td>Квартал 5</td><td>${st.quarterScore} / ${CONFIG.THRESHOLDS[4]} (${st.finalePassedThreshold ? "порог взят" : "порог не взят"})</td></tr>
+          <tr><td>Выгорание</td><td>${st.totalBurnout}</td></tr>
+          <tr><td>Кукиши</td><td>${st.kukishi}</td></tr>
+          <tr><td>Куда деваться</td><td>${st.kudaDevatsya} (порог финала: ${CONFIG.FINALE_THRESHOLD})</td></tr>
+          <tr><td>Seed</td><td>${st.seed}</td></tr>
+        </table>
+        <div class="paper-line"><button data-action="restart">Играть заново</button></div>
+        <div class="paper-line"><b>Личное дело</b>${this.renderLog()}</div>
       </div>
-      <div class="box">
-        <div class="row">Квартал 5: ${st.quarterScore} / ${CONFIG.THRESHOLDS[4]} (${st.finalePassedThreshold ? "порог взят" : "порог не взят"})</div>
-        <div class="row">Выгорание: ${st.totalBurnout} · Кукиши: ${st.kukishi} · Куда деваться: ${st.kudaDevatsya} (порог финала: ${CONFIG.FINALE_THRESHOLD}) · Seed: ${st.seed}</div>
-        <button data-action="restart">Играть заново</button>
-      </div>
-      <div class="box"><h3>Личное дело</h3>${this.renderLog()}</div>
     `;
   }
 };
@@ -892,6 +978,8 @@ document.addEventListener("click", function(e){
   if (action === "start-run"){
     const input = document.getElementById("seedInput");
     App.startRun(input ? input.value : "");
+  } else if (action === "acknowledge-order"){
+    App.acknowledgeOrder();
   } else if (action === "begin-day"){
     App.beginDay();
   } else if (action === "continue-day-outro"){
